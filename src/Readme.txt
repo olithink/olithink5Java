@@ -1,17 +1,26 @@
-OliThink5 (c) Oliver Brausch 23.Aug.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 30.Aug.2020, ob112@web.de, http://brausch.org
 
-Version: 5.6.6 Java
+Version: 5.6.9 Java
 Protocol: Winboard 2
-HashSize: 128MB ata (occupying more than 2GB of Heap Space in Java)
+HashSize: 128MB data (occupying more than 2GB of Heap Space in Java)
 Ponder: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1784
+LinesOfCode: 1768
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.6.9: changes since 5.6.8:
+Increase mobile eval of knights. Use built-in popcount.
+
+v5.6.8: changes since 5.6.7:
+Pawns reduce attack bonus on king.
+
+v5.6.7: changes since 5.6.6:
+More bonus for attack on king's squares. No nullmove on pvnode. Quiesce puffer to 125. Simplify pawn evaluation.
 
 v5.6.6: changes since 5.6.5:
 Implementing Internal Iterative Reduction instead of Deepening. Idea by Ed Schröder.
