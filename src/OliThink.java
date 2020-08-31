@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 23.Aug.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 27.Aug.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.6.6 Java";
+	final static String VER = "5.6.7 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -1071,8 +1071,7 @@ public class OliThink {
 	static int evalc(int c) {
 		int f, mn = 0, katt = 0;
 		int oc = c^1;
-		long ocb = colorb[oc];
-		long m, b, a, cb;
+		long b, a, cb, ocb = colorb[oc];
 		long kn = kmoves[kingpos[oc]];
 		long pin = pinnedPieces(kingpos[c], oc);
 
@@ -1090,15 +1089,11 @@ public class OliThink {
 				ppos -= (openfile ? 2 : 1) << 4;  // Open file
 			}
 			
-			m = PMOVE(f, c);
 			a = POCC(f, c);
-			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 3;
-			if ((BIT[f] & pin) != 0) {
-				if ((getDir(f, kingpos[c]) & 16) == 0) m = 0;
-			} else if (a != 0) {
+			if (a != 0) {
 				ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 			}
-			if (m != 0) ppos += 8; else ppos -= 8;
+			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 
 			if ((pawnhelp[c][f] & pieceb[PAWN] & colorb[c]) == 0) { // No support
 				a = ((BATT3(f) | BATT4(f)) & BQU()) | ((RATT1(f) | RATT2(f)) & RQU());
@@ -1115,7 +1110,7 @@ public class OliThink {
 			f = getLsb(b);
 			b ^= BIT[f];
 			a = nmoves[f];
-			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 3;
+			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 			mn += nmobil[f];
 		}
 
@@ -1124,7 +1119,7 @@ public class OliThink {
 			f = getLsb(b);
 			b ^= BIT[f];
 			a = nmoves[f];
-			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 3;
+			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 		}
 
 		colorb[oc] ^= BIT[kingpos[oc]]; //Opposite King doesn't block mobility at all
@@ -1135,7 +1130,7 @@ public class OliThink {
 			b ^= BIT[f];
 			
 			a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
-			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 3;
+			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 			mn += bitcnt(a);
 		}
 
@@ -1145,7 +1140,7 @@ public class OliThink {
 			f = getLsb(b);
 			b ^= BIT[f];
 			a = BATT3(f) | BATT4(f);
-			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 3;
+			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 			mn += bitcnt(a) << 3;
 		}
 
@@ -1156,7 +1151,7 @@ public class OliThink {
 			f = getLsb(b);
 			b ^= BIT[f];
 			a = RATT1(f) | RATT2(f);
-			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 3;
+			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 			mn += bitcnt(a) << 2;
 		}
 
@@ -1170,7 +1165,7 @@ public class OliThink {
 			else if (p == ROOK) a = RATT1(f) | RATT2(f);
 			else a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
 			
-			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 3;
+			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 			int t = p | getDir(f, kingpos[c]);
 			if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
 			if ((t & 18) == 18) mn += _bitcnt(RATT2(f));
@@ -1220,8 +1215,8 @@ public class OliThink {
 		
 		if (ch == 0) do {
 			int cmat = evallazy(c, mat);
-			if (cmat - 140 >= beta) return beta;
-			if (cmat + 140 <= alpha) break;
+			if (cmat - 125 >= beta) return beta;
+			if (cmat + 125 <= alpha) break;
 			best = eval(c, mat);
 			if (best > alpha) {
 				alpha = best;
@@ -1321,7 +1316,7 @@ public class OliThink {
 			if (hmove == 0) hmove = he.move;
 		}
 
-		if (ch == 0 && isnull != 0 && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
+		if (ch == 0 && pvnode == 0 && isnull != 0 && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 			int flagstore = flags;
 			int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4; if (n <= 2) R--;
 			if (R > d) R = d;
@@ -1330,7 +1325,7 @@ public class OliThink {
 			w = -search(0L, c^1, d-R, ply+1, -beta, 1-beta, 0, 0); //Null Move Search
 			flags = flagstore;
 			count -= 0x401;
-			if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, pvnode, 0);
+			if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, 0, 0);
 			if (sabort == 0 && w >= beta) return beta;
 		}
 
