@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 15.Aug.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 23.Aug.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.6.5 Java";
+	final static String VER = "5.6.6 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -604,6 +604,7 @@ public class OliThink {
 		return pin;
 	}
 
+	/* precondition: f and t are on common rank (8), file (16), diagonal (32) or antidiagonal (64) */
 	static byte getDir(int f, int t) {
 		if (((f ^ t) & 56) == 0) return 8;
 		if (((f ^ t) & 7) == 0) return 16;
@@ -1333,9 +1334,8 @@ public class OliThink {
 			if (sabort == 0 && w >= beta) return beta;
 		}
 
-		if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
-			w = search(ch, c, d-3, ply, alpha, beta, pvnode, 0);
-			if (he.key == hp) hmove = he.move;
+		if (d >= 5 && hmove == 0) { // Internal Iterative Reduction (IIR)
+			d--;
 		}
 
 		int first = 1;
