@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 01.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 02.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.0 Java";
+	final static String VER = "5.7.1 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -794,7 +794,7 @@ public class OliThink {
 			} 
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
 				long a = (t & 32) != 0 ? PCA3(f, c) : ((t & 64) != 0 ? PCA4(f, c) : 0L);
-				regPromotions(f, c, m, ml, mn, 0, 0);
+                if (a != 0L) regPromotions(f, c, a, ml, mn, 1, 0);
 			} else {
 				regMoves(PREMOVE(f, PAWN, c), m, ml, mn, 0);
 			}
@@ -855,7 +855,7 @@ public class OliThink {
 		return 0;
 	}
 
-	static int generateCaps(long ch, int c, int f, long pin, int[] ml, int[] mn) {
+	static int generateCaps(int c, int f, long pin, int[] ml, int[] mn) {
 		long m, b, a, cb = colorb[c] & (~pin);
 
 		regKings(PREMOVE(f, KING, c), KCAP(f, c), ml, mn, c, 1);
@@ -953,7 +953,7 @@ public class OliThink {
     		movenum[ply] = mn[0];
     		return r;
         }
-        if (cap) generateCaps(ch, c, f, pin, ml, mn);
+        if (cap) generateCaps(c, f, pin, ml, mn);
         if (noncap) generateNonCaps(ch, c, f, pin, ml, mn);
 		movenum[ply] = mn[0];
         return 0;
@@ -1503,11 +1503,12 @@ public class OliThink {
 
 	static int calc(int sd, int tm) {
 			int i, j, t1 = 0, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT()/2) % mps);
-			long ch = attacked(kingpos[onmove], onmove), tmsh = tm*8L-50-mps*10;;
-			long searchtime = Math.min(tm*5L/m2go + inc*1000L, tmsh);
-			long extendtime = Math.min(tm*24L/m2go + inc*1000L, tmsh);
+			long tmsh = Math.max(tm*8L-50-mps*5, 10);
+			long searchtime = Math.min(tm*6L/m2go + inc*1000L, tmsh);
+			long extendtime = Math.min(tm*25L/m2go + inc*1000L, tmsh);
 			if (st > 0) extendtime = searchtime = st*1000L;
 			
+			long ch = attacked(kingpos[onmove], onmove);
 			maxtime = extendtime;
 			starttime = getTime();
 			
