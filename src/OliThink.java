@@ -1738,7 +1738,7 @@ public class OliThink {
 		_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], 1);
 		newGame(3);
 		
-		for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i])-1)*6;
+		for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i]))*8;
 		for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i])/2);
 		for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
 
