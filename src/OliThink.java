@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 30.Aug.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 01.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.6.9 Java";
+	final static String VER = "5.7.0 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -331,12 +331,7 @@ public class OliThink {
 	}
 
 	static int identPiece(int f) {
-		if (TEST(f, pieceb[PAWN])) return PAWN;
-		if (TEST(f, pieceb[KNIGHT])) return KNIGHT;
-		if (TEST(f, pieceb[BISHOP])) return BISHOP;
-		if (TEST(f, pieceb[ROOK])) return ROOK;
-		if (TEST(f, pieceb[QUEEN])) return QUEEN;
-		if (TEST(f, pieceb[KING])) return KING;
+		for (int i = PAWN; i <= QUEEN; i++) if (i != ENP && TEST(f, pieceb[i])) return i;
 		return ENP;
 	}
 
@@ -525,10 +520,8 @@ public class OliThink {
 	}
 	
 	static void displaym(int m) {
-		printf(String.valueOf((char)('a' + FROM(m) % 8))
-				+ String.valueOf((char)('1' + FROM(m) / 8))
-				+ String.valueOf((char)('a' + TO(m) % 8))
-				+ String.valueOf((char)('1' + TO(m) / 8)));
+		printf(String.valueOf((char)('a' + FROM(m) % 8)) + String.valueOf((char)('1' + FROM(m) / 8))
+			+ String.valueOf((char)('a' + TO(m) % 8)) + String.valueOf((char)('1' + TO(m) / 8)));
 		if (PROM(m) != 0) printf(String.valueOf((char)(pieceChar.charAt(PROM(m))+32)));
 	}
 
@@ -781,8 +774,8 @@ public class OliThink {
 			if (m != 0 && RANK(f, c != 0 ? 0x30 : 0x08)) m |= PMOVE(c != 0 ? f-8 : f+8, c);
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
 				long a = PCAP(f, c);
-				regPromotions(f, c, m, ml, mn, 0, 0);
                 if (a != 0L) regPromotions(f, c, a, ml, mn, 1, 0);
+				regPromotions(f, c, m, ml, mn, 0, 0);
 			} else {
 				regMoves(PREMOVE(f, PAWN, c), m, ml, mn, 0);
 			}
@@ -802,7 +795,6 @@ public class OliThink {
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
 				long a = (t & 32) != 0 ? PCA3(f, c) : ((t & 64) != 0 ? PCA4(f, c) : 0L);
 				regPromotions(f, c, m, ml, mn, 0, 0);
-				if (a != 0L) regPromotions(f, c, a, ml, mn, 1, 0);
 			} else {
 				regMoves(PREMOVE(f, PAWN, c), m, ml, mn, 0);
 			}
@@ -1084,13 +1076,6 @@ public class OliThink {
 				ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 			}
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
-
-			if ((pawnhelp[c][f] & pieceb[PAWN] & colorb[c]) == 0) { // No support
-				a = ((BATT3(f) | BATT4(f)) & BQU()) | ((RATT1(f) | RATT2(f)) & RQU());
-				a |= (nmoves[f] & pieceb[KNIGHT]) | (kmoves[f] & pieceb[KING]);
-				ppos -= (_bitcnt(a & ocb)) << 4;
-			}
-
 			mn += ppos;
 		}
 
@@ -1173,10 +1158,10 @@ public class OliThink {
 		if (sf[c^1] >= 12) return 0;
 		int km = kmobil[kingpos[c]];
         if (sf[c^1] == 5 && sf[c] == 0 && pieceb[BISHOP] != 0 && pieceb[PAWN] == 0) { // BNK_vs_k
-            int bc = bishcorn[kingpos[c]] << 2;
+            int bc = bishcorn[kingpos[c]] << 3;
             if ((pieceb[BISHOP] & whitesq) != 0) km += bc; else km -= bc;
         }
-		return km * sf[c^1];
+		return km << 2;
 	}
 	
 	static int evallazy(int c, int matrl) {
@@ -1292,6 +1277,11 @@ public class OliThink {
 		if (ply != 0 && isDraw(hp, 1) != 0) return 0;
 
 		if (d == 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
+		
+        if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
+        if (beta > MAXSCORE-ply-1) beta = MAXSCORE-ply-1;
+        if (alpha >= beta) return alpha;
+
 		hstack[COUNT()] = hp;
 		
 		int hmove = ply != 0 ? 0 : retPVMove(c, ply);
@@ -1378,7 +1368,7 @@ public class OliThink {
 				for (j = ply +1; pv[ply +1][j] != 0; j++) pv[ply][j] = pv[ply +1][j];
 				pv[ply][j] = 0;
 				
-				if (w == MAXSCORE-1 - ply) { matekiller[ply] = m; n = 3; break; }
+				if (w == MAXSCORE-ply-1) { matekiller[ply] = m; n = 3; break; }
 				if (w >= beta) {
 					if (CAP(m) == 0) {
 						killer[ply] = m;
@@ -1391,9 +1381,9 @@ public class OliThink {
 		}
 		}
 		if (sabort != 0) return alpha;
-		if (first == 1) return (ch != 0) ? -MAXSCORE+ply : 0;
+		if (first == 1) alpha = ch != 0 ? -MAXSCORE+ply : 0;
 		
-		boolean type = true;
+		boolean type = true; // true = upper bound
 		if (first == -1) { type = false; hmove = pv[ply][ply]; } // Found a good move, lower bound
 		
 		he.set(hp, hmove, (short)alpha, (char)d, type);
@@ -1739,7 +1729,7 @@ public class OliThink {
 		newGame(3);
 		
 		for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i]))*8;
-		for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i])/2);
+		for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i]));
 		for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
 
 		if (args.length > 0 && "-sd".equals(args[0])) {
