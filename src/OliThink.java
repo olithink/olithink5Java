@@ -122,7 +122,6 @@ public class OliThink {
 	final static int[] _knight = {-17,-10,6,15,17,10,-6,-15};
 	final static int[] _king = {-9,-1,7,8,9,1,-7,-8};
 	final static long[] BIT = new long[64];
-	final static byte[] LSB = new byte[0x10000];
 	final static int[] crevoke = new int[64];
 	final static int[] nmobil = new int[64];
 	final static int[] kmobil = new int[64];
@@ -153,10 +152,6 @@ public class OliThink {
 	static long BOARD() { return (colorb[0] | colorb[1]); }
 	static long RQU() { return (pieceb[QUEEN] | pieceb[ROOK]); }
 	static long BQU() { return (pieceb[QUEEN] | pieceb[BISHOP]); }
-
-	static long getLowestBit(long bb) {
-		return bb & (-(long)bb);
-	}
 
 	static int _getpiece(char s, int[] c) {
 		int i;
@@ -309,21 +304,7 @@ public class OliThink {
 	}
 
 	static byte getLsb(long bm) {
-		int n = (int) LOW32(bm);
-		if (n != 0) {
-			if (LOW16(n) != 0) return LSB[LOW16(n)];
-			else return (byte)(16 | LSB[LOW16(n >> 16)]);
-		} else {
-			n = (int)(bm >> 32);
-			if (LOW16(n) != 0) return (byte)(32 | LSB[LOW16(n)]);
-			else return (byte)(48 | LSB[LOW16(n >> 16)]);
-		}
-	}
-
-	static byte _slow_lsb(long bm) {
-		int k = -1;
-		while (bm != 0) { k++; if ((bm & 1) != 0) break; bm >>= 1; }
-		return (byte)k;
+		return (byte)Long.numberOfTrailingZeros(bm); // _bitcnt((bm & -bm) -1);
 	}
 
 	static byte _bitcnt(long bit) {
@@ -436,7 +417,7 @@ public class OliThink {
 		long low, perm = free;
 		int i;
 		for (i = 0; i < bc; i++) {
-			low = getLowestBit(free);
+			low = free & (-free); // Lowest bit
 			free &= (~low);
 			if (!TEST(i, del)) perm &= (~low);
 		}
@@ -574,14 +555,12 @@ public class OliThink {
 		long pin = 0L;
 		long b = ((RXRAY1(f) | RXRAY2(f)) & colorb[oc]) & RQU();
 		while (b != 0) {
-			int t = getLsb(b);
-			b ^= BIT[t];
+			int t = getLsb(b); b &= b - 1;
 			pin |= RCAP(t, oc) & ROCC(f);
 		}
 		b = ((BXRAY3(f) | BXRAY4(f)) & colorb[oc]) & BQU();
 		while (b != 0) {
-			int t = getLsb(b);
-			b ^= BIT[t];
+			int t = getLsb(b); b &= b - 1;
 			pin |= BCAP(t, oc) & BOCC(f);
 		}
 		return pin;
@@ -668,8 +647,7 @@ public class OliThink {
 
 	static void regMoves(int m, long bt, int[] mlist, int[] mn, int cap) {
 		while (bt != 0) {
-			int t = getLsb(bt);
-			bt ^= BIT[t];
+			int t = getLsb(bt); bt &= bt - 1;
 			mlist[mn[0]++] = m | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
 		}
 	}
@@ -681,8 +659,7 @@ public class OliThink {
 
 	static void regPromotions(int f, int c, long bt, int[] mlist, int[] mn, int cap, int queen) {
 		while (bt != 0) {
-			int t = getLsb(bt);
-			bt ^= BIT[t];
+			int t = getLsb(bt); bt &= bt - 1;
 			int m = f | _ONMV(c) | _PIECE(PAWN) | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
 			if (queen != 0) mlist[mn[0]++] = m | _PROM(QUEEN);
 			mlist[mn[0]++] = m | _PROM(KNIGHT);
@@ -693,8 +670,7 @@ public class OliThink {
 
 	static void regKings(int m, long bt, int[] mlist, int[] mn, int c, int cap) {
 		while (bt != 0) {
-			int t = getLsb(bt);
-			bt ^= BIT[t];
+			int t = getLsb(bt); bt &= bt - 1;
 			if (battacked(t, c)) continue;
 			mlist[mn[0]++] = m | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
 		}
@@ -712,8 +688,7 @@ public class OliThink {
 
 		cc = attacked(bf, c^1) & apin;  //Can we capture the checker?
 		while (cc != 0) {
-			int cf = getLsb(cc);
-			cc ^= BIT[cf];
+			int cf = getLsb(cc); cc &= cc -1;
 			int p = identPiece(cf);
 			if (p == PAWN && RANK(cf, c != 0 ? 0x08 : 0x30)) {
 				regPromotions(cf, c, ch, ml, mn, 1, 1);
@@ -724,8 +699,7 @@ public class OliThink {
 		if (ENPASS() != 0 && (ch & pieceb[PAWN]) != 0) { //Enpassant capture of attacking Pawn
 			cc = PCAP(ENPASS(), c^1) & pieceb[PAWN] & apin;
 			while (cc != 0) {
-				int cf = getLsb(cc);
-				cc ^= BIT[cf];
+				int cf = getLsb(cc); cc &= cc -1;
 				regMovesCaps(PREMOVE(cf, PAWN, c), BIT[ENPASS()], 0L, ml, mn);
 			}
 		}
@@ -742,8 +716,7 @@ public class OliThink {
 			fl ^= BIT[f];
 			cc = reach(f, c^1) & apin;
 			while (cc != 0) {
-				int cf = getLsb(cc);
-				cc ^= BIT[cf];
+				int cf = getLsb(cc); cc &= cc -1;
 				int p = identPiece(cf);
 				regMovesCaps(PREMOVE(cf, p, c), 0L, BIT[f], ml, mn);
 			}
@@ -768,8 +741,7 @@ public class OliThink {
 
 		b = pieceb[PAWN] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			m = PMOVE(f, c);
 			if (m != 0 && RANK(f, c != 0 ? 0x30 : 0x08)) m |= PMOVE(c != 0 ? f-8 : f+8, c);
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
@@ -783,8 +755,7 @@ public class OliThink {
 
 		b = pin & pieceb[PAWN]; 
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			int t = getDir(f, kingpos[c]);
 			if ((t & 8) != 0) continue;
 			m = 0L;
@@ -802,15 +773,13 @@ public class OliThink {
 
 		b = pieceb[KNIGHT] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			regMoves(PREMOVE(f, KNIGHT, c), NMOVE(f), ml, mn, 0);
 		}
 
 		b = pieceb[ROOK] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			regMoves(PREMOVE(f, ROOK, c), RMOVE(f), ml, mn, 0);
 			if (CASTLE() != 0 && ch == 0) {
 				if (c != 0) {
@@ -829,22 +798,19 @@ public class OliThink {
 
 		b = pieceb[BISHOP] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			regMoves(PREMOVE(f, BISHOP, c), BMOVE(f), ml, mn, 0);
 		}
 
 		b = pieceb[QUEEN] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			regMoves(PREMOVE(f, QUEEN, c), RMOVE(f) | BMOVE(f), ml, mn, 0);
 		}
 
 		b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			int p = identPiece(f);
 			int t = p | getDir(f, kingpos[c]);
 			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RMOVE1(f), ml, mn, 0);
@@ -862,8 +828,7 @@ public class OliThink {
 
 		b = pieceb[PAWN] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			a = PCAP(f, c);
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
 				regMovesCaps(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, PMOVE(f, c), ml, mn);
@@ -881,8 +846,7 @@ public class OliThink {
 
 		b = pin & pieceb[PAWN]; 
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			int t = getDir(f, kingpos[c]);
 			if ((t & 8) != 0) continue;
 			m = a = 0L;
@@ -902,36 +866,31 @@ public class OliThink {
 
 		b = pieceb[KNIGHT] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			regMoves(PREMOVE(f, KNIGHT, c), NCAP(f, c), ml, mn, 1);
 		}
 
 		b = pieceb[BISHOP] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			regMoves(PREMOVE(f, BISHOP, c), BCAP(f, c), ml, mn, 1);
 		}
 
 		b = pieceb[ROOK] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			regMoves(PREMOVE(f, ROOK, c), RCAP(f, c), ml, mn, 1);
 		}
 
 		b = pieceb[QUEEN] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			regMoves(PREMOVE(f, QUEEN, c), RCAP(f, c) | BCAP(f,c), ml, mn, 1);
 		}
 
 		b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			int p = identPiece(f);
 			int t = p | getDir(f, kingpos[c]);
 			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RCAP1(f, c), ml, mn, 1);
@@ -1059,8 +1018,7 @@ public class OliThink {
 
 		b = pieceb[PAWN] & colorb[c];
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			
 			/* The only non-mobility eval is the detection of free pawns/hanging pawns */
 			int ppos = pawnprg[c][f];
@@ -1082,8 +1040,7 @@ public class OliThink {
 		cb = colorb[c] & (~pin);
 		b = pieceb[KNIGHT] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			a = nmoves[f];
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 			mn += nmobil[f];
@@ -1091,8 +1048,7 @@ public class OliThink {
 
 		b = pieceb[KNIGHT] & pin;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			a = nmoves[f];
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 		}
@@ -1101,8 +1057,7 @@ public class OliThink {
 		colorb[c] ^= pieceb[QUEEN] & cb; //Own non-pinned Queen doesn't block mobility for bishop.
 		b = pieceb[QUEEN] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			
 			a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
@@ -1112,8 +1067,7 @@ public class OliThink {
 		colorb[oc] ^= RQU() & ocb; //Opposite Queen & Rook doesn't block mobility for bisho
 		b = pieceb[BISHOP] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			a = BATT3(f) | BATT4(f);
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 			mn += _bitcnt(a) << 3;
@@ -1123,8 +1077,7 @@ public class OliThink {
 		colorb[c] ^= pieceb[ROOK] & cb; //Own non-pinned Rook doesn't block mobility for rook.
 		b = pieceb[ROOK] & cb;
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			a = RATT1(f) | RATT2(f);
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
 			mn += _bitcnt(a) << 2;
@@ -1133,8 +1086,7 @@ public class OliThink {
 		colorb[c] ^= RQU() & cb; // Back
 		b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 		while (b != 0) {
-			f = getLsb(b);
-			b ^= BIT[f];
+			f = getLsb(b); b &= b - 1;
 			int p = identPiece(f);
 			if (p == BISHOP) a = BATT3(f) | BATT4(f);
 			else if (p == ROOK) a = RATT1(f) | RATT2(f);
@@ -1700,7 +1652,6 @@ public class OliThink {
 		ReadThread read = new ReadThread();
 		read.start();
 		
-		for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
 		for (i = 4096, n = 1, m = 6364136223846793005L; i-- != 0; hashxor[4095-i] = n = n*m +1L);
 		for (i = 0; i < 64; i++) BIT[i] = 1L << i;
 		for (i = 0; i < 64; i++) pmoves[0][i] = pawnfree[0][i] = pawnfile[0][i] = pawnhelp[0][i] = 0L;
