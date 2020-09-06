@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 02.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.1 Java";
+	final static String VER = "5.7.3 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -1026,7 +1026,7 @@ public class OliThink {
 			
 			if ((pawnhelp[c][f] & pieceb[PAWN] & colorb[c]) == 0) { // No support
 				boolean openfile = (pawnfile[c][f] & pieceb[PAWN] & ocb) == 0;
-				ppos -= (openfile ? 2 : 1) << 4;  // Open file
+				ppos -= (openfile ? 32 : 10);  // Open file
 			}
 			
 			a = POCC(f, c);
@@ -1061,7 +1061,7 @@ public class OliThink {
 			
 			a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
-			mn += _bitcnt(a);
+			mn += _bitcnt(a) << 1;
 		}
 
 		colorb[oc] ^= RQU() & ocb; //Opposite Queen & Rook doesn't block mobility for bisho
@@ -1549,8 +1549,9 @@ public class OliThink {
 	}
 	
 	static int protV2(String buf, boolean parse) {
-		if (buf.startsWith("protover")) printf("feature setboard=1 myname=\"OliThink " + VER + "\" colors=0 analyze=1 done=1\n");
-		else if (buf.startsWith("xboard")); 
+		if (buf.startsWith("protover")) printf("feature setboard=1 myname=\"OliThink " + VER + "\" colors=0 analyze=1 ping=1 sigint=0 sigterm=0 done=1\n");
+		else if (buf.startsWith("xboard"));
+		else if (buf.startsWith("ping")) printf(buf.replace("ping", "pong") + "\n");
 		else if (buf.startsWith("quit")) return -2;
 		else if (buf.startsWith("new")) return -3;
 		else if (buf.startsWith("remove")) return -4;
@@ -1581,7 +1582,7 @@ public class OliThink {
 		else if (buf.startsWith("bk"));
 		else if (buf.startsWith("hint"));
 		else if (buf.startsWith("computer"));
-		else if (buf.startsWith("accepted"));//accepted <feature>
+		else if (buf.startsWith("accepted") || buf.startsWith("rejected"));//accepted/rejected <feature>
 		else if (buf.startsWith("random"));
 		else if (buf.startsWith("rating")) ics = true;//ICS: rating <myrat> <oprat>
 		else if (buf.startsWith("name"));//ICS: name <opname>
