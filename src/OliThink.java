@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.3 Java";
+	final static String VER = "5.7.4 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -68,14 +68,11 @@ public class OliThink {
 	static long BCAP(int f, int c) { return (BOCC(f) & colorb[(c)^1]); }
 
 	static long SHORTMOVE(long x) { return ((x) & ((x)^BOARD())); }
-	static long SHORTOCC(long x) { return ((x) & BOARD()); }
 	static long SHORTCAP(long x, int c) { return ((x) & colorb[(c)^1]); }
 
 	static long NMOVE(int x) { return (SHORTMOVE(nmoves[x])); }
 	static long KMOVE(int x) { return (SHORTMOVE(kmoves[x])); }
 	static long PMOVE(int x, int c) { return (pmoves[(c)][(x)] & (~BOARD())); }
-	static long NOCC(int x) { return (SHORTOCC(nmoves[x])); }
-	static long KOCC(int x) { return (SHORTOCC(kmoves[x])); }
 	static long POCC(int x, int c) { return (pcaps[(c)][(x)] & BOARD()); }
 	static long NCAP(int x, int c) { return (SHORTCAP(nmoves[x], (c))); }
 	static long KCAP(int x, int c) { return (SHORTCAP(kmoves[x], (c))); }
@@ -102,8 +99,8 @@ public class OliThink {
 		int move;
 		short value;
 		char depth;
-		boolean type;
-		void set(long key, int move, short value, char depth, boolean type) {
+		char type;
+		void set(long key, int move, short value, char depth, char type) {
 			this.key = key; this.move = move; this.value = value; this.depth = depth; this.type = type;			
 		}
 	}
@@ -295,9 +292,6 @@ public class OliThink {
 		_parse_fen(sfen);
 		if (bkcount[0] > 0 || bkcount[1] > 0) book = true;
 	}
-
-	static int LOW16(long x) { return (int)((x) & 0xFFFF); }
-	static int LOW32(long x) { return (int)((x) & 0xFFFFFFFFL); }
 
 	static long getTime() {
 		return System.currentTimeMillis();
@@ -1010,7 +1004,7 @@ public class OliThink {
 
 	/* The evaluation for Color c. It's only mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
 	static int evalc(int c) {
-		int f, mn = 0, katt = 0;
+		int f, mn = 0, katt = 0, egf = 5200/(40 + sf[c]);
 		int oc = c^1;
 		long b, a, cb, ocb = colorb[oc];
 		long kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
@@ -1021,7 +1015,7 @@ public class OliThink {
 			f = getLsb(b); b &= b - 1;
 			
 			/* The only non-mobility eval is the detection of free pawns/hanging pawns */
-			int ppos = pawnprg[c][f];
+			int ppos = pawnprg[c][f]* egf / 100;
 			if ((pawnfree[c][f] & pieceb[PAWN] & ocb) == 0) ppos <<= 1; //Free run?
 			
 			if ((pawnhelp[c][f] & pieceb[PAWN] & colorb[c]) == 0) { // No support
@@ -1080,7 +1074,7 @@ public class OliThink {
 			f = getLsb(b); b &= b - 1;
 			a = RATT1(f) | RATT2(f);
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
-			mn += _bitcnt(a) << 2;
+			mn += (_bitcnt(a) << 2) * egf / 75;
 		}
 
 		colorb[c] ^= RQU() & cb; // Back
@@ -1242,15 +1236,15 @@ public class OliThink {
 		if (he.key == hp) {
 			w = he.value;	
 			if (he.depth >= d) {
-				if (he.type && w <= alpha) return alpha;
-				if (!he.type && w >= beta) return beta;
+				if (he.type <= 1 && w >= beta) return beta;
+				if (he.type >= 1 && w <= alpha) return alpha;
 			}
 			if (hmove == 0) hmove = he.move;
 		}
 
 		if (ch == 0 && !pvnode && isnull && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 			int flagstore = flags;
-			int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4; if (n <= 2) R--;
+			int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
 			if (R > d) R = d;
 			flags &= 960;
 			count += 0x401;
@@ -1292,7 +1286,7 @@ public class OliThink {
 			if (nch != 0) ext++; // Check Extension
 			else if (n == 2 && !pvnode && d >= 2 && ch == 0 && PROM(m) == 0 && swap(m) < 0) ext--; //Reduce bad exchanges
 			else if (n == 3 && !pvnode) { //LMR
-                if (m == killer[ply] || m == matekiller[ply] || PROM(m) != 0); //Don't reduce killers or promotions
+                if (m == killer[ply] || m == matekiller[ply]); //Don't reduce killers or promotions
                 else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[c^1]) == 0); //Don't reduce free pawns
 				else {
 					long his = history[m & 0xFFF];
@@ -1335,9 +1329,9 @@ public class OliThink {
 		if (sabort != 0) return alpha;
 		if (first == 1) alpha = ch != 0 ? -MAXSCORE+ply : 0;
 		
-		boolean type = true; // true = upper bound
-		if (first == -1) { type = false; hmove = pv[ply][ply]; } // Found a good move, lower bound
-		
+		char type = 2; // 2 = upper bound
+		if (first == -1) { type = (char)(alpha >= beta ? 0 : 1); hmove = pv[ply][ply]; } // Found a good move, lower/exact bound
+
 		he.set(hp, hmove, (short)alpha, (char)d, type);
 
 		return alpha;
@@ -1541,9 +1535,9 @@ public class OliThink {
         return cnt;
 	}
 	
-	static void newGame(int level) {
+	static void newGame() {
 		_readbook("olibook.pgn");
-		reseth(level);
+		reseth(3);
 		engine = 1;
 		sd = 64;		
 	}
@@ -1679,11 +1673,11 @@ public class OliThink {
 		_init_shorts(kmoves, _king);
 		_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], 0);
 		_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], 1);
-		newGame(3);
 		
 		for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i]))*8;
 		for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i]));
 		for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
+		newGame();
 
 		if (args.length > 0 && "-sd".equals(args[0])) {
 			time = 99999999;
@@ -1699,7 +1693,7 @@ public class OliThink {
 
 			if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
 			if (ex == -2) break;
-			if (ex == -3) newGame(analyze ? 3 : 2);
+			if (ex == -3) newGame();
 			if (ex == -4) { undo(); undo(); }
 			if (ex == -5) { analyze = pondering = true; engine = -1; } 
 			if (ex == -6) pondering = analyze = false;    

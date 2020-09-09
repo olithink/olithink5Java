@@ -1,6 +1,6 @@
 OliThink5 (c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.7.3 Java
+Version: 5.7.4 Java
 Protocol: Winboard 2
 HashSize: 128MB data (occupying more than 2GB of Heap Space in Java)
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1711
+LinesOfCode: 1705
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.7.4: changes since 5.7.3:
+Purge hash when new game. Exact Bound. End game factor.
 
 v5.7.3: changes since 5.7.2:
 Increase queen mobility, change pawn eval. Implement ping command.
