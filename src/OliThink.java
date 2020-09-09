@@ -1,14 +1,13 @@
-/* OliThink5 Java(c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 09.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.util.Random;
 import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.4 Java";
+	final static String VER = "5.7.5 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -980,7 +979,7 @@ public class OliThink {
 		return m;
 	}
 
-	final static int[] killer = new int[128]; final static int[] matekiller = new int[128];
+	final static int[] killer = new int[128];
 	final static long[] history = new long[0x1000];
 	/* In normal search some basic move ordering heuristics are used */
 	static int spick(int[] ml, int mn, int s, int ply) {
@@ -1284,15 +1283,15 @@ public class OliThink {
 
 			nch = attacked(kingpos[c^1], c^1);
 			if (nch != 0) ext++; // Check Extension
-			else if (n == 2 && !pvnode && d >= 2 && ch == 0 && PROM(m) == 0 && swap(m) < 0) ext--; //Reduce bad exchanges
+			else if (n == 2 && !pvnode && d >= 2 && ch == 0 && PROM(m) == 0 && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
 			else if (n == 3 && !pvnode) { //LMR
-                if (m == killer[ply] || m == matekiller[ply]); //Don't reduce killers or promotions
+                if (m == killer[ply]); //Don't reduce killers
                 else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[c^1]) == 0); //Don't reduce free pawns
 				else {
 					long his = history[m & 0xFFF];
 					if (his > hismax) { hismax = his;} 
 					else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
-					else if (d >= 2) ext--;
+					else if (d >= 2) ext-= (d + 1)/3;
 				}
 			}
 			if (PROM(m) == QUEEN) ext++;
@@ -1314,11 +1313,11 @@ public class OliThink {
 				for (j = ply +1; pv[ply +1][j] != 0; j++) pv[ply][j] = pv[ply +1][j];
 				pv[ply][j] = 0;
 				
-				if (w == MAXSCORE-ply-1) { matekiller[ply] = m; n = 3; break; }
+				if (w == MAXSCORE-ply-1) { n = 3; break; }
 				if (w >= beta) {
 					if (CAP(m) == 0) {
 						killer[ply] = m;
-						history[m & 0xFFF]+=d*d;
+	                    history[m & 0xFFF]+=(d+ext)*(d+ext);
 					}
 					n = 3; break;
 				}
@@ -1341,7 +1340,6 @@ public class OliThink {
         int i, istart = level < 0 ? 1 : 0;
         for (i = 0; i < 0x1000; i++) history[i] = 0L;
         for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
-        for (i = istart; i < 127; i++) matekiller[i] = level <= 1 ? matekiller[i+level] : 0;
         for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
         if (level <= 1) return;
         pv[0][0] = 0;
@@ -1463,7 +1461,7 @@ public class OliThink {
 			if (book) {
 				if (bkcount[onmove] == 0) book = false;
 				else {
-					j = new Random(starttime).nextInt(bkcount[onmove]);
+		            j = (int)(hashxor[(int)(starttime % 4095)] % bkcount[onmove]);
 					for (i = 0; i < BKSIZE; i++) {
 						if (bkflag[i] == onmove && j == t1++) { pv[0][0] = bkmove[i*32 + COUNT()]; break; }
 					}
