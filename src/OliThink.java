@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 09.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 11.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -7,7 +7,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.5 Java";
+	final static String VER = "5.7.6 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -334,15 +334,15 @@ public class OliThink {
 	   return keyDiag(b & bmask135[f]);
 	}
 
-	static boolean DUALATT(int x, int y, int c) { return (battacked(x, c) || battacked(y, c)); }
-	static boolean battacked(int f, int c) {
+	static boolean DUALATT(int x, int y, int c) { return (battacked(x, c, pieceb[QUEEN]) || battacked(y, c, pieceb[QUEEN])); }
+	static boolean battacked(int f, int c, long q) {
 		if ((PCAP(f, c) & pieceb[PAWN]) != 0) return true;
 		if ((NCAP(f, c) & pieceb[KNIGHT]) != 0) return true;
 		if ((KCAP(f, c) & pieceb[KING]) != 0) return true;
-		if ((RCAP1(f, c) & RQU()) != 0) return true; 
-		if ((RCAP2(f, c) & RQU()) != 0) return true; 
-		if ((BCAP3(f, c) & BQU()) != 0) return true;
-		if ((BCAP4(f, c) & BQU()) != 0) return true;
+		if ((RCAP1(f, c) & (pieceb[ROOK] | q)) != 0) return true; 
+		if ((RCAP2(f, c) & (pieceb[ROOK] | q)) != 0) return true; 
+		if ((BCAP3(f, c) & (pieceb[BISHOP] | q)) != 0) return true;
+		if ((BCAP4(f, c) & (pieceb[BISHOP] | q)) != 0) return true;
 		return false;
 	}
 
@@ -664,7 +664,7 @@ public class OliThink {
 	static void regKings(int m, long bt, int[] mlist, int[] mn, int c, int cap) {
 		while (bt != 0) {
 			int t = getLsb(bt); bt &= bt - 1;
-			if (battacked(t, c)) continue;
+			if (battacked(t, c, pieceb[QUEEN])) continue;
 			mlist[mn[0]++] = m | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
 		}
 	}
@@ -1054,7 +1054,7 @@ public class OliThink {
 			
 			a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
-			mn += _bitcnt(a) << 1;
+			mn += (_bitcnt(a) << 1)* egf / 75;
 		}
 
 		colorb[oc] ^= RQU() & ocb; //Opposite Queen & Rook doesn't block mobility for bisho
@@ -1257,6 +1257,10 @@ public class OliThink {
 		if (d >= 5 && hmove == 0) { // Internal Iterative Reduction (IIR)
 			d--;
 		}
+		
+		int evilqueen = 0;
+	    if ((pieceb[QUEEN] & colorb[c^1]) != 0) evilqueen = getLsb(pieceb[QUEEN] & colorb[c^1]);
+	    if (evilqueen != 0 && battacked(evilqueen, c^1, 0L)) evilqueen = 0;
 
 		int first = 1;
 		for (n = 1; n <= ((ch != 0L) ? 2 : 3); n++) {
@@ -1283,10 +1287,12 @@ public class OliThink {
 
 			nch = attacked(kingpos[c^1], c^1);
 			if (nch != 0) ext++; // Check Extension
-			else if (n == 2 && !pvnode && d >= 2 && ch == 0 && PROM(m) == 0 && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
-			else if (n == 3 && !pvnode) { //LMR
+	        else if (pvnode || ch != 0); // Don't reduce pvnodes and check evasions
+			else if (n == 2 && d >= 2 && PROM(m) == 0 && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
+			else if (n == 3) { //LMR
                 if (m == killer[ply]); //Don't reduce killers
-                else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[c^1]) == 0); //Don't reduce free pawns
+                else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[c^1]) == 0); 
+                else if (evilqueen != 0 && battacked(evilqueen, c^1, 0) && swap(m) >= 0); //Don't reduce queen attacks
 				else {
 					long his = history[m & 0xFFF];
 					if (his > hismax) { hismax = his;} 

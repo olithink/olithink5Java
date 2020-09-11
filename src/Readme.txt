@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 09.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 11.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.7.5 Java
+Version: 5.7.6 Java
 Protocol: Winboard 2
 HashSize: 128MB data (occupying more than 2GB of Heap Space in Java)
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1703
+LinesOfCode: 1709
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.7.6: changes since 5.7.5:
+No reduction of queen attacks.
 
 v5.7.5: changes since 5.7.4:
 Remove matekillers. Dynamic reduction depth.

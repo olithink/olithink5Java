@@ -37,7 +37,7 @@ public class OliThinkFrame extends JFrame implements MouseListener, MouseMotionL
 			}
 		};
 		new Timer().schedule(engine, 0L);
-		OliThink.receiveCommand("time 4500");
+		OliThink.receiveCommand("time 7500");
 	}
 	
 	public void stop() {
