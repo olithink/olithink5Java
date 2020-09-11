@@ -1440,6 +1440,7 @@ public class OliThink {
         if (m[0] == -1) printf("UNKNOWN COMMAND: " + s + "\n");
         else if (m[0] == 0) errprintf("Illegal move: " + s + "\n");
         else return execMove(m[0]);
+        sendBoard();
         return -1;
 	}
 
