@@ -1425,11 +1425,11 @@ public class OliThink {
 		return 0;
 	}
 
-	static int parseMoveNExec(String s, int c, int[] m) {
-		m[0] = parseMove(s, c, 0);
-		if (m[0] == -1) printf("UNKNOWN COMMAND: " + s + "\n");
-		else if (m[0] == 0) errprintf("Illegal move: " + s + "\n");
-		else return execMove(m[0]);
+	static int parseMoveNExec(String s, int c) {
+		int m = parseMove(s, c, 0);
+		if (m == -1) printf("UNKNOWN COMMAND: " + s + "\n");
+		else if (m == 0) errprintf("Illegal move: " + s + "\n");
+		else return execMove(m);
 		sendBoard();
 		return -1;
 	}
@@ -1614,8 +1614,6 @@ public class OliThink {
 	}
 
 	static int input(int c) {
-		int[] m = new int[1];
-
 		String buf;
 		if (irbuf.length() > 0) {
 			buf = irbuf.toString();
@@ -1630,7 +1628,7 @@ public class OliThink {
 		}
 		irbuf.setLength(0);
 		int ex = protV2(buf, true);
-		if (ex == -1) return parseMoveNExec(buf, c, m);
+		if (ex == -1) return parseMoveNExec(buf, c);
 		return ex;
 	}
 
