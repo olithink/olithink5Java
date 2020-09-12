@@ -270,12 +270,9 @@ public class OliThink {
 							if (n1 < 0) break;
 							s1 = s0.substring(n1 + 1);
 						}
-						int[] ip = new int[1];
-						parseMoveNExec(s1, 0, ip);
-						bkmove[n*32+ (j++)] = ip[0];
+						doMove(bkmove[n*32+ (j++)] = parseMove(s1, 0, 0), 0);
 						if ("".equals(s2) || s2.charAt(0) == '*') break;
-						parseMoveNExec(s2, 1, ip);
-						bkmove[n*32+ (j++)] = ip[0];
+						doMove(bkmove[n*32+ (j++)] = parseMove(s2, 1, 0), 1);
 						if (j > 30 || i >= buf.length()) break;
 					}
 					bkmove[n*32 + j] = 0;
