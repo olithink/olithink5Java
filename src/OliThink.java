@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 12.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 13.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -7,7 +7,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.6 Java";
+	final static String VER = "5.7.7";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -908,23 +908,21 @@ public class OliThink {
 		return 0;
 	}
 
-
 	static int swap(int m) { //SEE
 		int[] s_list = new int[32];
-		int f = FROM(m), t = TO(m), onmv = ONMV(m);
-		int a_piece = pval[CAP(m)], piece = PIECE(m), c = onmv^1, nc = 1;
+		int f = FROM(m), t = TO(m), c = ONMV(m);
+		int a_piece = pval[CAP(m)], piece = PIECE(m), nc = 1;
 		long temp = 0, colstore0 = colorb[0], colstore1 = colorb[1];
 		
-		long attacks = attacked(t, 0) | attacked(t, 1);
+		long attacks = ((PCAP(t, 0) | PCAP(t, 1)) & pieceb[PAWN]) |
+				(nmoves[t] & pieceb[KNIGHT]) | (kmoves[t] & pieceb[KING]);
 		s_list[0] = a_piece;
 		a_piece = pval[piece];
-		colorb[onmv] ^= BIT[f];
+		colorb[c] &= ~BIT[f]; // ^= BIT[f];
 		
 		do {
-			if ((piece & 4) != 0 || piece == 1) {
-				if ((piece & 1) != 0) attacks |= BOCC(t) & BQU();
-				if ((piece & 2) != 0) attacks |= ROCC(t) & RQU();
-			}
+			c ^= 1;
+			attacks |= (BOCC(t) & BQU()) | (ROCC(t) & RQU());
 			attacks &= BOARD();
 
 			if ((temp = pieceb[PAWN] & colorb[c] & attacks) != 0) piece = PAWN;
@@ -932,7 +930,7 @@ public class OliThink {
 			else if ((temp = pieceb[BISHOP] & colorb[c] & attacks) != 0) piece = BISHOP;
 			else if ((temp = pieceb[ROOK] & colorb[c] & attacks) != 0) piece = ROOK;
 			else if ((temp = pieceb[QUEEN] & colorb[c] & attacks) != 0) piece = QUEEN;
-			else if ((temp = pieceb[KING] & colorb[c] & attacks) != 0) piece = KING;
+			else if ((temp = pieceb[KING] & colorb[c] & attacks) != 0) { piece = KING; if ((colorb[c^1] & attacks) !=0) break; }
 			else break;
 
 			temp &= -(long)temp;
@@ -940,9 +938,8 @@ public class OliThink {
 
 			s_list[nc] = -s_list[nc - 1] + a_piece;
 			a_piece = pval[piece];
-			nc++;
-			c ^= 1;
-		} while (attacks != 0);
+			if (a_piece < s_list[++nc - 1]) break;
+		} while (true);
 
 		while ((--nc) != 0)
 			if (s_list[nc] > -s_list[nc - 1])
@@ -1340,7 +1337,7 @@ public class OliThink {
 		if (level <= 1) return;
 		pv[0][0] = 0;
 		if (level >= 3) for (i = 0; i < HSIZE; i++) if (hashDB[i] != null) hashDB[i].key = 0L;
-		if (level >= 3) sendBoard();
+		if (level >= 3) sendBoard(0);
 	}
 
 	static int execMove(int m) {
@@ -1430,7 +1427,7 @@ public class OliThink {
 		if (m == -1) printf("UNKNOWN COMMAND: " + s + "\n");
 		else if (m == 0) errprintf("Illegal move: " + s + "\n");
 		else return execMove(m);
-		sendBoard();
+		sendBoard(ONMV(m));
 		return -1;
 	}
 
@@ -1711,23 +1708,25 @@ public class OliThink {
 			OliThinkFrame.engineMove(FROM(m) % 8, FROM(m) / 8, TO(m) % 8, TO(m) / 8);
 		}
 		try {
-			Thread.sleep(25);
-			sendBoard();
+			Thread.sleep(20);
+			sendBoard(ONMV(m)^1);
 		} catch (InterruptedException e) {
 		}*/
 	}
 
-	static void sendBoard() {
+	static void sendBoard(int c) {
 /*		String fen = "";
 		int i, j;
 		for (i = 0; i < 8; i++) {
+			int ws = 0;
 			for (j = 0; j < 8; j++) {
 				int f = j + (7-i)*8;
-				char c = (char)(pieceChar.charAt(identPiece(f)) + (identColor(f) ? 32 : 0));
-				if (c == '.') c = '1';
-				fen += String.valueOf(c);
-			} if (i < 7) fen += "/";
-		} 
+				char p = (char)(pieceChar.charAt(identPiece(f)) + (identColor(f) ? 32 : 0));
+				if (p == '.') { ws++; continue; } else if (ws > 0) { fen+= String.valueOf(ws); ws = 0; }
+				fen += String.valueOf(p);
+			} fen += ( ws > 0 ? String.valueOf(ws) : "") + (i < 7 ? "/" : "");
+		}
+		//printf(fen + (c != 0 ? " b" : " w") + "\n");
 		OliThinkFrame.parsePos(fen);*/
 	}
 }
