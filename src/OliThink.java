@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 13.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 15.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -7,7 +7,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.7";
+	final static String VER = "5.7.8 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -1123,7 +1123,7 @@ public class OliThink {
 		if (ch == 0) do {
 			int cmat = evallazy(c, mat);
 			if (cmat - 125 >= beta) return beta;
-			if (cmat + 125 <= alpha) break;
+			if (cmat + 85 <= alpha) break;
 			best = eval(c, mat);
 			if (best > alpha) {
 				alpha = best;
@@ -1193,6 +1193,7 @@ public class OliThink {
 		return r;
 	}
 
+	static final int NO_MOVE = 0, ANY_MOVE = 1, GOOD_MOVE = 2;
 	static long HASHP(int c) { return (hashb ^ hashxor[flags | 1024 | (c << 11)]); }
 	static int search(long ch, int c, int d, int ply, int alpha, int beta, boolean pvnode, boolean isnull) {
 		int i, j, n, w;
@@ -1220,14 +1221,19 @@ public class OliThink {
 
 		Entry he = hashDB[(int)(hp & HMASK)]; if (he == null) hashDB[(int)(hp & HMASK)] = he = new Entry();
 		if (he.key == hp) {
-			w = he.value;	
 			if (he.depth >= d) {
-				if (he.type <= 1 && w >= beta) return beta;
-				if (he.type >= 1 && w <= alpha) return alpha;
+				if (he.type <= 1 && he.value >= beta) return beta;
+				if (he.type >= 1 && he.value <= alpha) return alpha;
 			}
 			if (hmove == 0) hmove = he.move;
 		}
+		
+		if (ch == 0 && !pvnode && d <= 8) {
+			w = evallazy(c, mat);
+			if (w > beta + 85*d) return w;
+		}
 
+		//Null Move - pvnode => null == 0
 		if (ch == 0 && isnull && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 			int flagstore = flags;
 			int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
@@ -1249,7 +1255,7 @@ public class OliThink {
 		if ((pieceb[QUEEN] & colorb[c^1]) != 0) evilqueen = getLsb(pieceb[QUEEN] & colorb[c^1]);
 		if (evilqueen != 0 && battacked(evilqueen, c^1, 0L)) evilqueen = 0;
 
-		int first = 1;
+		int first = NO_MOVE;
 		for (n = 1; n <= ((ch != 0L) ? 2 : 3); n++) {
 			if (n == 1) {
 				if (hmove == 0) continue;
@@ -1289,7 +1295,7 @@ public class OliThink {
 				}
 				if (PROM(m) == QUEEN) ext++;
 
-				if (first == 1 && pvnode) {
+				if (first == NO_MOVE && pvnode) {
 					w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, true, false);
 				} else {
 					w = -search(nch, c^1, d-1+ext, ply+1, -alpha-1, -alpha, false, true);
@@ -1301,7 +1307,7 @@ public class OliThink {
 
 				if (w > alpha) {
 					alpha = w;
-					first = -1;
+					first = GOOD_MOVE;
 					pv[ply][ply] = m;
 					for (j = ply +1; pv[ply +1][j] != 0; j++) pv[ply][j] = pv[ply +1][j];
 					pv[ply][j] = 0;
@@ -1314,15 +1320,14 @@ public class OliThink {
 						}
 						n = 3; break;
 					}
-				}
-				if (first == 1) first = 0;
+				} else if (first == NO_MOVE) first = ANY_MOVE;
 			}
 		}
 		if (sabort != 0) return alpha;
-		if (first == 1) alpha = ch != 0 ? -MAXSCORE+ply : 0;
+		if (first == NO_MOVE) alpha = ch != 0 ? -MAXSCORE+ply : 0;
 
-		char type = 2; // 2 = upper bound
-		if (first == -1) { type = (char)(alpha >= beta ? 0 : 1); hmove = pv[ply][ply]; } // Found a good move, lower/exact bound
+		char type = 2; // 2 = upper bound               lower = 0 : 1 = exact bound
+		if (first == GOOD_MOVE) { type = (char)(alpha >= beta ? 0 : 1); hmove = pv[ply][ply]; } // Found a good move
 
 		he.set(hp, hmove, (short)alpha, (char)d, type);
 
