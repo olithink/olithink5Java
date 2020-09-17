@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 15.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 17.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -7,7 +7,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.8 Java";
+	final static String VER = "5.7.8a Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -103,6 +103,16 @@ public class OliThink {
 			this.key = key; this.move = move; this.value = value; this.depth = depth; this.type = type;			
 		}
 	}
+	
+	static class Movep {
+		int n = 0;
+		int list[] = new int[128];
+		static Movep[] movep = new Movep[256];
+		static Movep get(int p) {
+			if (movep[p] == null) movep[p] = new Movep();
+			return movep[p];
+		}
+	}
 
 	final static Entry[] hashDB = new Entry[HSIZE];
 	static long hashb = 0L;
@@ -129,8 +139,6 @@ public class OliThink {
 	final static int bishcorn[] = new int[64];
 	static long whitesq;
 
-	final static int[][] movelist = new int[128][256];
-	final static int[] movenum = new int[128];
 	final static int[][] pv = new int[128][128];
 	final static int[] value = new int[128];
 	static int iter;
@@ -635,43 +643,43 @@ public class OliThink {
 		flags = (int)((u >> 17L) & 0x3FF);
 	}
 
-	static void regMoves(int m, long bt, int[] mlist, int[] mn, int cap) {
+	static void regMoves(int m, long bt, Movep mp, int cap) {
 		while (bt != 0) {
 			int t = getLsb(bt); bt &= bt - 1;
-			mlist[mn[0]++] = m | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
+			mp.list[mp.n++] = m | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
 		}
 	}
 	
-	static void regMovesCaps(int m, long bc, long bm, int[]  mlist, int[] mn) {
-		regMoves(m, bc, mlist, mn, 1);
-		regMoves(m, bm, mlist, mn, 0);
+	static void regMovesCaps(int m, long bc, long bm, Movep mp) {
+		regMoves(m, bc, mp, 1);
+		regMoves(m, bm, mp, 0);
 	}
 
-	static void regPromotions(int f, int c, long bt, int[] mlist, int[] mn, int cap, int queen) {
+	static void regPromotions(int f, int c, long bt, Movep mp, int cap, int queen) {
 		while (bt != 0) {
 			int t = getLsb(bt); bt &= bt - 1;
 			int m = f | _ONMV(c) | _PIECE(PAWN) | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
-			if (queen != 0) mlist[mn[0]++] = m | _PROM(QUEEN);
-			mlist[mn[0]++] = m | _PROM(KNIGHT);
-			mlist[mn[0]++] = m | _PROM(ROOK);
-			mlist[mn[0]++] = m | _PROM(BISHOP);
+			if (queen != 0) mp.list[mp.n++] = m | _PROM(QUEEN);
+			mp.list[mp.n++] = m | _PROM(KNIGHT);
+			mp.list[mp.n++] = m | _PROM(ROOK);
+			mp.list[mp.n++] = m | _PROM(BISHOP);
 		}
 	}
 
-	static void regKings(int m, long bt, int[] mlist, int[] mn, int c, int cap) {
+	static void regKings(int m, long bt, Movep mp, int c, int cap) {
 		while (bt != 0) {
 			int t = getLsb(bt); bt &= bt - 1;
 			if (battacked(t, c, pieceb[QUEEN])) continue;
-			mlist[mn[0]++] = m | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
+			mp.list[mp.n++] = m | _TO(t) | (cap != 0 ? _CAP(identPiece(t)) : 0);
 		}
 	}
 
-	static int generateCheckEsc(long ch, long apin, int c, int k, int[] ml, int[] mn) {
+	static int generateCheckEsc(long ch, long apin, int c, int k, Movep mp) {
 		long cc, fl;
 		int d, bf = _bitcnt(ch);
 		colorb[c] ^= BIT[k];
-		regKings(PREMOVE(k, KING, c), KCAP(k, c), ml, mn, c, 1);
-		regKings(PREMOVE(k, KING, c), KMOVE(k), ml, mn, c, 0);
+		regKings(PREMOVE(k, KING, c), KCAP(k, c), mp, c, 1);
+		regKings(PREMOVE(k, KING, c), KMOVE(k), mp, c, 0);
 		colorb[c] ^= BIT[k];
 		if (bf > 1) return bf; //Doublecheck
 		bf = getLsb(ch);
@@ -681,16 +689,16 @@ public class OliThink {
 			int cf = getLsb(cc); cc &= cc -1;
 			int p = identPiece(cf);
 			if (p == PAWN && RANK(cf, c != 0 ? 0x08 : 0x30)) {
-				regPromotions(cf, c, ch, ml, mn, 1, 1);
+				regPromotions(cf, c, ch, mp, 1, 1);
 			} else {
-				regMovesCaps(PREMOVE(cf, p, c), ch, 0L, ml, mn);
+				regMovesCaps(PREMOVE(cf, p, c), ch, 0L, mp);
 			}
 		}
 		if (ENPASS() != 0 && (ch & pieceb[PAWN]) != 0) { //Enpassant capture of attacking Pawn
 			cc = PCAP(ENPASS(), c^1) & pieceb[PAWN] & apin;
 			while (cc != 0) {
 				int cf = getLsb(cc); cc &= cc -1;
-				regMovesCaps(PREMOVE(cf, PAWN, c), BIT[ENPASS()], 0L, ml, mn);
+				regMovesCaps(PREMOVE(cf, PAWN, c), BIT[ENPASS()], 0L, mp);
 			}
 		}
 		if ((ch & (nmoves[k] | kmoves[k])) != 0) return 1; //We can't move anything between!
@@ -708,26 +716,26 @@ public class OliThink {
 			while (cc != 0) {
 				int cf = getLsb(cc); cc &= cc -1;
 				int p = identPiece(cf);
-				regMovesCaps(PREMOVE(cf, p, c), 0L, BIT[f], ml, mn);
+				regMovesCaps(PREMOVE(cf, p, c), 0L, BIT[f], mp);
 			}
 			bf = c != 0 ? f+8 : f-8;
 			if (bf < 0 || bf > 63) continue;
 			if ((BIT[bf] & pieceb[PAWN] & colorb[c] & apin) != 0) {
 				if (RANK(bf, c != 0 ? 0x08 : 0x30))
-					regPromotions(bf, c, BIT[f], ml, mn, 0, 1);
+					regPromotions(bf, c, BIT[f], mp, 0, 1);
 				else
-					regMovesCaps(PREMOVE(bf, PAWN, c), 0L, BIT[f], ml, mn);
+					regMovesCaps(PREMOVE(bf, PAWN, c), 0L, BIT[f], mp);
 			}
 			if (RANK(f, c != 0 ? 0x20 : 0x18) && (BOARD() & BIT[bf]) == 0 && (BIT[c != 0 ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin) != 0)
-				regMovesCaps(PREMOVE(c != 0 ? f+16 : f-16, PAWN, c), 0L, BIT[f], ml, mn);
+				regMovesCaps(PREMOVE(c != 0 ? f+16 : f-16, PAWN, c), 0L, BIT[f], mp);
 		}
 		return 1;
 	}
 
-	static int generateNonCaps(long ch, int c, int f, long pin, int[] ml, int[] mn) {
+	static void generateNonCaps(int c, int f, long pin, Movep mp) {
 		long m, b, cb = colorb[c] & (~pin);
 
-		regKings(PREMOVE(f, KING, c), KMOVE(f), ml, mn, c, 0);
+		regKings(PREMOVE(f, KING, c), KMOVE(f), mp, c, 0);
 
 		b = pieceb[PAWN] & cb;
 		while (b != 0) {
@@ -736,10 +744,10 @@ public class OliThink {
 			if (m != 0 && RANK(f, c != 0 ? 0x30 : 0x08)) m |= PMOVE(c != 0 ? f-8 : f+8, c);
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
 				long a = PCAP(f, c);
-				if (a != 0L) regPromotions(f, c, a, ml, mn, 1, 0);
-				regPromotions(f, c, m, ml, mn, 0, 0);
+				if (a != 0L) regPromotions(f, c, a, mp, 1, 0);
+				regPromotions(f, c, m, mp, 0, 0);
 			} else {
-				regMoves(PREMOVE(f, PAWN, c), m, ml, mn, 0);
+				regMoves(PREMOVE(f, PAWN, c), m, mp, 0);
 			}
 		}
 
@@ -755,33 +763,33 @@ public class OliThink {
 			} 
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
 				long a = (t & 32) != 0 ? PCA3(f, c) : ((t & 64) != 0 ? PCA4(f, c) : 0L);
-				if (a != 0L) regPromotions(f, c, a, ml, mn, 1, 0);
+				if (a != 0L) regPromotions(f, c, a, mp, 1, 0);
 			} else {
-				regMoves(PREMOVE(f, PAWN, c), m, ml, mn, 0);
+				regMoves(PREMOVE(f, PAWN, c), m, mp, 0);
 			}
 		}
 
 		b = pieceb[KNIGHT] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, KNIGHT, c), NMOVE(f), ml, mn, 0);
+			regMoves(PREMOVE(f, KNIGHT, c), NMOVE(f), mp, 0);
 		}
 
 		b = pieceb[ROOK] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, ROOK, c), RMOVE(f), ml, mn, 0);
-			if (CASTLE() != 0 && ch == 0) {
+			regMoves(PREMOVE(f, ROOK, c), RMOVE(f), mp, 0);
+			if (CASTLE() != 0) {
 				if (c != 0) {
 					if ((flags & 128) != 0 && (f == 63) && (RMOVE1(63) & BIT[61]) != 0)
-						if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING, c), BIT[62], ml, mn, 0);
+						if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING, c), BIT[62], mp, 0);
 					if ((flags & 512) != 0 && (f == 56) && (RMOVE1(56) & BIT[59]) != 0)
-						if (!DUALATT(59, 58, c)) regMoves(PREMOVE(60, KING, c), BIT[58], ml, mn, 0);
+						if (!DUALATT(59, 58, c)) regMoves(PREMOVE(60, KING, c), BIT[58], mp, 0);
 				} else {
 					if ((flags & 64) != 0 && (f == 7) && (RMOVE1(7) & BIT[5]) != 0)
-						if (!DUALATT(5, 6, c)) regMoves(PREMOVE(4, KING, c), BIT[6], ml, mn, 0);
+						if (!DUALATT(5, 6, c)) regMoves(PREMOVE(4, KING, c), BIT[6], mp, 0);
 					if ((flags & 256) != 0 && (f == 0) && (RMOVE1(0) & BIT[3]) != 0)
-						if (!DUALATT(3, 2, c)) regMoves(PREMOVE(4, KING, c), BIT[2], ml, mn, 0);
+						if (!DUALATT(3, 2, c)) regMoves(PREMOVE(4, KING, c), BIT[2], mp, 0);
 				}
 			}
 		}
@@ -789,13 +797,13 @@ public class OliThink {
 		b = pieceb[BISHOP] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, BISHOP, c), BMOVE(f), ml, mn, 0);
+			regMoves(PREMOVE(f, BISHOP, c), BMOVE(f), mp, 0);
 		}
 
 		b = pieceb[QUEEN] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, QUEEN, c), RMOVE(f) | BMOVE(f), ml, mn, 0);
+			regMoves(PREMOVE(f, QUEEN, c), RMOVE(f) | BMOVE(f), mp, 0);
 		}
 
 		b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
@@ -803,25 +811,24 @@ public class OliThink {
 			f = getLsb(b); b &= b - 1;
 			int p = identPiece(f);
 			int t = p | getDir(f, kingpos[c]);
-			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RMOVE1(f), ml, mn, 0);
-			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RMOVE2(f), ml, mn, 0);
-			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BMOVE3(f), ml, mn, 0);
-			if ((t & 65) == 65) regMoves(PREMOVE(f, p, c), BMOVE4(f), ml, mn, 0);
+			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RMOVE1(f), mp, 0);
+			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RMOVE2(f), mp, 0);
+			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BMOVE3(f), mp, 0);
+			if ((t & 65) == 65) regMoves(PREMOVE(f, p, c), BMOVE4(f), mp, 0);
 		}
-		return 0;
 	}
 
-	static int generateCaps(int c, int f, long pin, int[] ml, int[] mn) {
+	static void generateCaps(int c, int f, long pin, Movep mp) {
 		long m, b, a, cb = colorb[c] & (~pin);
 
-		regKings(PREMOVE(f, KING, c), KCAP(f, c), ml, mn, c, 1);
+		regKings(PREMOVE(f, KING, c), KCAP(f, c), mp, c, 1);
 
 		b = pieceb[PAWN] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
 			a = PCAP(f, c);
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
-				regMovesCaps(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, PMOVE(f, c), ml, mn);
+				regMovesCaps(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, PMOVE(f, c), mp);
 			} else {
 				if (ENPASS() != 0 && (BIT[ENPASS()] & pcaps[(c)][(f)]) != 0) {
 					colorb[c^1] ^= BIT[ENPASS()^8];
@@ -830,7 +837,7 @@ public class OliThink {
 					}
 					colorb[c^1] ^= BIT[ENPASS()^8];
 				}
-				regMoves(PREMOVE(f, PAWN, c), a, ml, mn, 1);
+				regMoves(PREMOVE(f, PAWN, c), a, mp, 1);
 			}
 		}
 
@@ -848,34 +855,34 @@ public class OliThink {
 				a = PCA4(f, c);
 			}
 			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
-				regMovesCaps(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, m, ml, mn);
+				regMovesCaps(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, m, mp);
 			} else {
-				regMoves(PREMOVE(f, PAWN, c), a, ml, mn, 1);
+				regMoves(PREMOVE(f, PAWN, c), a, mp, 1);
 			}
 		}
 
 		b = pieceb[KNIGHT] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, KNIGHT, c), NCAP(f, c), ml, mn, 1);
+			regMoves(PREMOVE(f, KNIGHT, c), NCAP(f, c), mp, 1);
 		}
 
 		b = pieceb[BISHOP] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, BISHOP, c), BCAP(f, c), ml, mn, 1);
+			regMoves(PREMOVE(f, BISHOP, c), BCAP(f, c), mp, 1);
 		}
 
 		b = pieceb[ROOK] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, ROOK, c), RCAP(f, c), ml, mn, 1);
+			regMoves(PREMOVE(f, ROOK, c), RCAP(f, c), mp, 1);
 		}
 
 		b = pieceb[QUEEN] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, QUEEN, c), RCAP(f, c) | BCAP(f,c), ml, mn, 1);
+			regMoves(PREMOVE(f, QUEEN, c), RCAP(f, c) | BCAP(f,c), mp, 1);
 		}
 
 		b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
@@ -883,28 +890,21 @@ public class OliThink {
 			f = getLsb(b); b &= b - 1;
 			int p = identPiece(f);
 			int t = p | getDir(f, kingpos[c]);
-			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RCAP1(f, c), ml, mn, 1);
-			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RCAP2(f, c), ml, mn, 1);
-			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BCAP3(f, c), ml, mn, 1);
-			if ((t & 65) == 65) regMoves(PREMOVE(f, p, c), BCAP4(f, c), ml, mn, 1);
+			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RCAP1(f, c), mp, 1);
+			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RCAP2(f, c), mp, 1);
+			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BCAP3(f, c), mp, 1);
+			if ((t & 65) == 65) regMoves(PREMOVE(f, p, c), BCAP4(f, c), mp, 1);
 		}
-		return 0;
 	}
 
-	static int generate(long ch, int c, int ply, boolean cap, boolean noncap) {
+	static int generate(long ch, int c, Movep mp, boolean cap, boolean noncap) {
 		int f = kingpos[c];
 		long pin = pinnedPieces(f, c^1);
-		int[] ml = movelist[ply];
-		int[] mn = new int[]{0};
+		mp.n = 0;
 		
-		if (ch != 0L) {
-			int r = generateCheckEsc(ch, ~pin, c, f, ml, mn);
-			movenum[ply] = mn[0];
-			return r;
-		}
-		if (cap) generateCaps(c, f, pin, ml, mn);
-		if (noncap) generateNonCaps(ch, c, f, pin, ml, mn);
-		movenum[ply] = mn[0];
+		if (ch != 0L) return generateCheckEsc(ch, ~pin, c, f, mp);
+		if (cap) generateCaps(c, f, pin, mp);
+		if (noncap) generateNonCaps(c, f, pin, mp);
 		return 0;
 	}
 
@@ -950,31 +950,31 @@ public class OliThink {
 		return s_list[0];
 	}
 
-	/* In quiesce the moves are ordered just for the value of the captured piece */
-	static int qpick(int[] ml, int mn, int s) {
+	/* In quiesce the list are ordered just for the value of the captured piece */
+	static int qpick(Movep mp, int s) {
 		int m;
 		int i, t, pi = 0, vmax = -9999;
-		for (i = s; i < mn; i++) {
-			m = ml[i];
+		for (i = s; i < mp.n; i++) {
+			m = mp.list[i];
 			t = pval[CAP(m)];
 			if (t > vmax) {
 				vmax = t;
 				pi = i;
 			}
 		}
-		m = ml[pi];
-		if (pi != s) ml[pi] = ml[s];
+		m = mp.list[pi];
+		if (pi != s) mp.list[pi] = mp.list[s];
 		return m;
 	}
 
 	final static int[] killer = new int[128];
 	final static long[] history = new long[0x1000];
 	/* In normal search some basic move ordering heuristics are used */
-	static int spick(int[] ml, int mn, int s, int ply) {
+	static int spick(Movep mp, int s, int ply) {
 		int m, i, pi = 0;
 		long vmax = -9999L;
-		for (i = s; i < mn; i++) {
-			m = ml[i];
+		for (i = s; i < mp.n; i++) {
+			m = mp.list[i];
 			if (m == killer[ply]) {
 				pi = i;
 				break;
@@ -984,8 +984,8 @@ public class OliThink {
 				pi = i;
 			}
 		}
-		m = ml[pi];
-		if (pi != s) ml[pi] = ml[s];
+		m = mp.list[pi];
+		if (pi != s) mp.list[pi] = mp.list[s];
 		return m;
 	}
 
@@ -1131,11 +1131,11 @@ public class OliThink {
 			}
 		} while(false);
 
-		generate(ch, c, ply, true, false);
-		if (ch != 0 && movenum[ply] == 0) return -MAXSCORE + ply;
+		Movep mp = Movep.get(ply); generate(ch, c, mp, true, false);
+		if (ch != 0 && mp.n == 0) return -MAXSCORE + ply;
 
-		for (i = 0; i < movenum[ply]; i++) {
-			int m = qpick(movelist[ply], movenum[ply], i);
+		for (i = 0; i < mp.n; i++) {
+			int m = qpick(mp, i);
 			if (ch == 0 && PROM(m) == 0 && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
 
 			doMove(m, c);
@@ -1158,9 +1158,9 @@ public class OliThink {
 
 	static int retPVMove(int c, int ply) {
 		int i;
-		generate(attacked(kingpos[c], c), c, 0, true, true);
-		for (i = 0; i < movenum[0]; i++) {
-			int m = movelist[0][i];
+		Movep mp = Movep.get(ply); generate(attacked(kingpos[c], c), c, mp, true, true);
+		for (i = 0; i < mp.n; i++) {
+			int m = mp.list[i];
 			if (m == pv[0][ply]) return m;
 		}
 		return 0;
@@ -1255,25 +1255,26 @@ public class OliThink {
 		if ((pieceb[QUEEN] & colorb[c^1]) != 0) evilqueen = getLsb(pieceb[QUEEN] & colorb[c^1]);
 		if (evilqueen != 0 && battacked(evilqueen, c^1, 0L)) evilqueen = 0;
 
+		Movep mp = Movep.get(ply);
 		int first = NO_MOVE;
 		for (n = 1; n <= ((ch != 0L) ? 2 : 3); n++) {
 			if (n == 1) {
 				if (hmove == 0) continue;
-				movenum[ply] = 1;
+				mp.n = 1;
 			} else if (n == 2) {
-				generate(ch, c, ply, true, false);
+				generate(ch, c, mp, true, false);
 			} else {
-				generate(ch, c, ply, false, true);
+				generate(ch, c, mp, false, true);
 			}
-			for (i = 0; i < movenum[ply]; i++) {
+			for (i = 0; i < mp.n; i++) {
 				int m;
 				long nch;
 				int ext = 0;
 				if (n == 1) {
 					m = hmove;
 				} else {
-					if (n == 2) m = qpick(movelist[ply], movenum[ply], i);
-					else m = spick(movelist[ply], movenum[ply], i, ply);
+					if (n == 2) m = qpick(mp, i);
+					else m = spick(mp, i, ply);
 					if (m == hmove) continue;
 				}
 				doMove(m, c);
@@ -1358,9 +1359,9 @@ public class OliThink {
 		}
 		hstack[COUNT()] = HASHP(c);
 		reseth(1);
-		i = generate(attacked(kingpos[c], c), c, 0, true, true);
-		if (pondering) return (movenum[0] == 0 ? 7 : 0);
-		if (movenum[0] == 0) {
+		Movep mp = Movep.get(0); i = generate(attacked(kingpos[c], c), c, mp, true, true);
+		if (pondering) return (mp.n == 0 ? 7 : 0);
+		if (mp.n == 0) {
 			if (i == 0) {
 				printf("1/2-1/2 {Stalemate}\n"); return 4;
 			} else {
@@ -1420,8 +1421,8 @@ public class OliThink {
 				if (ismove(p, to, from, piece, prom, h)) return p;
 				return 0;
 			}
-			generate(attacked(kingpos[c], c), c, 0, true, true);
-			for (i = 0; i < movenum[0]; i++) if (ismove(movelist[0][i], to, from, piece, prom, h)) return movelist[0][i];
+			Movep mp = Movep.get(0); generate(attacked(kingpos[c], c), c, mp, true, true);
+			for (i = 0; i < mp.n; i++) if (ismove(mp.list[i], to, from, piece, prom, h)) return mp.list[i];
 		} catch (StringIndexOutOfBoundsException e) {
 		}
 		return 0;
@@ -1522,10 +1523,10 @@ public class OliThink {
 		int i, ply = 63 - d;
 		long n, cnt = 0L;
 
-		generate(attacked(kingpos[c], c), c, ply, true, true);
-		if (d == 1 || bioskey()) return (long)movenum[ply];
-		for (i = 0; i < movenum[ply]; i++) {
-			int m = movelist[ply][i];
+		Movep mp = Movep.get(d); generate(attacked(kingpos[c], c), c, mp, true, true);
+		if (d == 1 || bioskey()) return (long)mp.n;
+		for (i = 0; i < mp.n; i++) {
+			int m = mp.list[i];
 			doMove(m, c);
 			cnt += n = perft(c^1, d - 1, 0);
 			if (div != 0) { displaym(m); printf(" " + n + "\n"); }
@@ -1538,7 +1539,7 @@ public class OliThink {
 		_readbook("olibook.pgn");
 		reseth(3);
 		engine = 1;
-		sd = 64;		
+		sd = 64;
 	}
 
 	static int protV2(String buf, boolean parse) {
