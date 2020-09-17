@@ -3,11 +3,12 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.8a Java";
+	final static String VER = "5.7.9 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -26,15 +27,15 @@ public class OliThink {
 
 	static int FROM(int x) { return ((x) & 63); }
 	static int TO(int x) { return (((x) >> 6) & 63); }
-	static int PROM(int x) { return (((x) >> 12) & 7); }
-	static int PIECE(int x) { return (((x) >> 15) & 7); }
-	static int ONMV(int x) { return (((x) >> 18) & 1); }
+	static int ONMV(int x) { return (((x) >> 12) & 1); }
+	static int PROM(int x) { return (((x) >> 13) & 7); }
+	static int PIECE(int x) { return (((x) >> 16) & 7); }
 	static int CAP(int x) { return (((x) >> 19) & 7); }
 
 	static int _TO(int x) { return ((x) << 6); }
-	static int _PROM(int x) { return ((x) << 12); }
-	static int _PIECE(int x) { return ((x) << 15); }
-	static int _ONMV(int x) { return ((x) << 18); }
+	static int _ONMV(int x) { return ((x) << 12); }
+	static int _PROM(int x) { return ((x) << 13); }
+	static int _PIECE(int x) { return ((x) << 16); }
 	static int _CAP(int x) { return ((x) << 19); }
 	static int PREMOVE(int f, int p, int c) { return ((f) | _ONMV(c) | _PIECE(p)); }
 
@@ -968,7 +969,7 @@ public class OliThink {
 	}
 
 	final static int[] killer = new int[128];
-	final static long[] history = new long[0x1000];
+	final static long[] history = new long[0x2000];
 	/* In normal search some basic move ordering heuristics are used */
 	static int spick(Movep mp, int s, int ply) {
 		int m, i, pi = 0;
@@ -979,8 +980,8 @@ public class OliThink {
 				pi = i;
 				break;
 			}
-			if (vmax < history[m & 0xFFF]) {
-				vmax = history[m & 0xFFF];
+			if (vmax < history[m & 0x1FFF]) {
+				vmax = history[m & 0x1FFF];
 				pi = i;
 			}
 		}
@@ -1288,7 +1289,7 @@ public class OliThink {
 					else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[c^1]) == 0); 
 					else if (evilqueen != 0 && battacked(evilqueen, c^1, 0) && swap(m) >= 0); //Don't reduce queen attacks
 					else {
-						long his = history[m & 0xFFF];
+						long his = history[m & 0x1FFF];
 						if (his > hismax) { hismax = his;} 
 						else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
 						else if (d >= 2) ext-= (d + 1)/3;
@@ -1317,7 +1318,7 @@ public class OliThink {
 					if (w >= beta) {
 						if (CAP(m) == 0) {
 							killer[ply] = m;
-							history[m & 0xFFF]+=(d+ext)*(d+ext);
+							history[m & 0x1FFF]+=(d+ext)*(d+ext);
 						}
 						n = 3; break;
 					}
@@ -1337,7 +1338,7 @@ public class OliThink {
 
 	static void reseth(int level) {
 		int i, istart = level < 0 ? 1 : 0;
-		for (i = 0; i < 0x1000; i++) history[i] = 0L;
+		Arrays.fill(history, 0);
 		for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
 		for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
 		if (level <= 1) return;
