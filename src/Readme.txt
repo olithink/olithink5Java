@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 17.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 19.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.7.9 Java
+Version: 5.8.0 Java
 Protocol: Winboard 2
 HashSize: 128MB data (occupying more than 2GB of Heap Space in Java)
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1709
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.8.0: changes since 5.7.9:
+Refactor null move pruning. Adapt queen mobility.
 
 v5.7.9: changes since 5.7.8:
 Refactor movelist in generate. History heuristics color dependent.

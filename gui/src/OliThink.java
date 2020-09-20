@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 17.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 19.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.7.9 Java";
+	final static String VER = "5.8.0 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -324,12 +324,12 @@ public class OliThink {
 	static int key090(long b, int f) {
 		long _b = (b >> (f&7)) & 0x0101010101010101L;
 		_b = _b * 0x0080402010080400L;
-		return (int)((_b >> 57) & 0x7F);
+		return (int)((_b >> 57) & 0x7F); // or (_b >>> 57)
 	}
 
 	static int keyDiag(long _b) {
 		_b = _b * 0x0202020202020202L;
-		return (int)((_b >> 57) & 0x7F);
+		return (int)((_b >> 57) & 0x7F); // or (_b >>> 57)
 	}
 
 	static int key045(long b, int f) {
@@ -587,8 +587,6 @@ public class OliThink {
 		hashb ^= hashxor[(f) | (p) << 6 | (c) << 9];
 		hashb ^= hashxor[(t) | (p) << 6 | (c) << 9];
 
-		flags &= 960;
-		count += 0x401;
 		if (a != 0) {
 			if (a == ENP) { // Enpassant Capture
 				t = (t&7) | (f&56);
@@ -634,12 +632,14 @@ public class OliThink {
 
 	static void doMove(int m, int c) {
 		mstack[COUNT()] = count | (flags << 17) | (((long)m) << 27);
-		move(m, c, 1);
+		flags &= 960; // reset en-passant flags
+		count += 0x401; // counter++
+		if (m != 0) move(m, c, 1);
 	}
 
 	static void undoMove(int m, int c) {
 		long u = mstack[COUNT() - 1];
-		move(m, c, -1);
+		if (m != 0) move(m, c, -1);
 		count = (int)(u & 0x1FFFF);
 		flags = (int)((u >> 17L) & 0x3FF);
 	}
@@ -1043,7 +1043,7 @@ public class OliThink {
 			
 			a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
-			mn += (_bitcnt(a) << 1)* egf / 75;
+			mn += (_bitcnt(a) << 1)* egf * egf / 76 / 76;
 		}
 
 		colorb[oc] ^= RQU() & ocb; //Opposite Queen & Rook doesn't block mobility for bisho
@@ -1210,13 +1210,11 @@ public class OliThink {
 		hp = HASHP(c);
 		if (ply != 0 && isDraw(hp, 1) != 0) return 0;
 
-		if (d == 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
+		if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
 		
 		if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
 		if (beta > MAXSCORE-ply-1) beta = MAXSCORE-ply-1;
 		if (alpha >= beta) return alpha;
-
-		hstack[COUNT()] = hp;
 		
 		int hmove = ply != 0 ? 0 : retPVMove(c, ply);
 
@@ -1229,21 +1227,20 @@ public class OliThink {
 			if (hmove == 0) hmove = he.move;
 		}
 		
+
+		hstack[COUNT()] = hp;
 		if (ch == 0 && !pvnode && d <= 8) {
 			w = evallazy(c, mat);
 			if (w > beta + 85*d) return w;
 		}
 
 		//Null Move - pvnode => null == 0
-		if (ch == 0 && isnull && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
-			int flagstore = flags;
+		isnull = isnull && ch == 0 && d > 1 && (ply < 2 || (mstack[COUNT()-2] >> 27) != 0);
+		if (isnull && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 			int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
-			if (R > d) R = d;
-			flags &= 960;
-			count += 0x401;
+			doMove(0, c);
 			w = -search(0L, c^1, d-R, ply+1, -beta, 1-beta, false, false); //Null Move Search
-			flags = flagstore;
-			count -= 0x401;
+			undoMove(0, c);
 			if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, false, false);
 			if (sabort == 0 && w >= beta) return beta;
 		}
@@ -1521,7 +1518,7 @@ public class OliThink {
 	}
 
 	static long perft(int c, int d, int div) {
-		int i, ply = 63 - d;
+		int i;
 		long n, cnt = 0L;
 
 		Movep mp = Movep.get(d); generate(attacked(kingpos[c], c), c, mp, true, true);
