@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 19.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 24.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.8.0 Java";
+	final static String VER = "5.8.1 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1;
@@ -1043,7 +1043,7 @@ public class OliThink {
 			
 			a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 			if ((a & kn) != 0) katt += _bitcnt(a & kn) << 4;
-			mn += (_bitcnt(a) << 1)* egf * egf / 76 / 76;
+			mn += (_bitcnt(a) << 1)* egf * egf / 78 / 78;
 		}
 
 		colorb[oc] ^= RQU() & ocb; //Opposite Queen & Rook doesn't block mobility for bisho
@@ -1274,6 +1274,7 @@ public class OliThink {
 					if (n == 2) m = qpick(mp, i);
 					else m = spick(mp, i, ply);
 					if (m == hmove) continue;
+					if (first != NO_MOVE && d <= 8 && swap(m) < -d*60) continue;
 				}
 				doMove(m, c);
 
