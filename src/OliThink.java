@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.8.2 Java";
+	final static String VER = "5.8.3 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1, KNIGHT = 2, KING = 3, ENP = 4, BISHOP = 5, ROOK = 6, QUEEN = 7;
@@ -1086,13 +1086,12 @@ public class OliThink {
 	}
 
 	static int kmobilf(int c) {
-		if (sf[c^1] >= 12) return 0;
-		int km = kmobil[kingpos[c]];
-		if (sf[c^1] == 5 && sf[c] == 0 && pieceb[BISHOP] != 0 && pieceb[PAWN] == 0) { // BNK_vs_k
-			int bc = bishcorn[kingpos[c]] << 3;
+		int km = kmobil[kingpos[c]] << 2, sfo = sf[c^1];
+		if (sf[c] == 0  && sfo == 5 && pieceb[BISHOP] != 0 && pieceb[PAWN] == 0) { // BNK_vs_k
+			int bc = bishcorn[kingpos[c]] << 5;
 			if ((pieceb[BISHOP] & whitesq) != 0) km += bc; else km -= bc;
 		}
-		return km << 2;
+		return sfo < 14 ? km : km * (16 - sfo) /4;
 	}
 
 	static int evallazy(int c, int matrl) {
