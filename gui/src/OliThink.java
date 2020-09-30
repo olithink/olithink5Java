@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 29.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -1445,11 +1445,10 @@ public class OliThink {
 		int i, j, w, d, t1, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT()/2) % mps);
 		long tmsh = Math.max(tm*8L-50-mps*5, 10);
 		long searchtime = Math.min(tm*6L/m2go + inc*1000L, tmsh);
-		long extendtime = Math.min(tm*25L/m2go + inc*1000L, tmsh);
-		if (st > 0) extendtime = searchtime = st*1000L;
+		maxtime = Math.min(searchtime*5L, tmsh);
+		if (st > 0) maxtime = searchtime = st*1000L;
 
 		long ch = attacked(kingpos[onmove], onmove);
-		maxtime = extendtime;
 		starttime = getTime();
 
 		sabort = w = t1 = 0;
@@ -1464,7 +1463,8 @@ public class OliThink {
 			}
 		}
 		if (!book || analyze) for (d = 1; d <= sd; d++) {
-			int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18, wsave= w;
+			int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
+			int bestm = pv[0][0];
 
 			for(;;) {
 				if (alpha < -pval[QUEEN]*2) alpha = -MAXSCORE;
@@ -1489,11 +1489,7 @@ public class OliThink {
 			if (d >= MAXSCORE - w) break;
 			if (t1 < searchtime || d == 1) continue;
 			
-			if (w - wsave < -40 && maxtime == extendtime && extendtime < tmsh) {
-				maxtime = Math.min(extendtime*3L, tmsh-1);
-				continue;
-			}
-			break;
+			if (bestm == pv[0][0] || t1 > searchtime*2) break;
 		}
 		if (analyze) return 1;
 		pondering = false;

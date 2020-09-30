@@ -1,4 +1,4 @@
-OliThink5 (c) Oliver Brausch 29.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org
 
 Version: 5.8.3 Java
 Protocol: Winboard 2
@@ -14,7 +14,7 @@ Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
 
 v5.8.3: changes since 5.8.2:
-Adapt King mobility.
+Adapt King mobility and time management.
 
 v5.8.2: changes since 5.8.1:
 Mobility mask reducing special squares. Aspiration Window.
