@@ -1,7 +1,7 @@
 OliThink5 (c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org
 
 Version: 5.8.3 Java
-Protocol: Winboard 2
+Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB data (occupying more than 2GB of Heap Space in Java)
 Ponder: Yes
 OpeningBook: Small
