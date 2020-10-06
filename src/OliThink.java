@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 04.Oct.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,11 +8,12 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	final static String VER = "5.8.3 Java";
+	final static String VER = "5.8.4 Java";
 	final static Class<?> otclass = OliThink.class;
 
 	final static int PAWN = 1, KNIGHT = 2, KING = 3, ENP = 4, BISHOP = 5, ROOK = 6, QUEEN = 7;
 	final static int LOWER = 0, EXACT = 1, UPPER = 2;
+	final static int NO_MOVE = 0, ANY_MOVE =1, GOOD_MOVE = 2;
 
 	final static int CNODES = 0x3FFF;
 	final static int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
@@ -139,8 +140,7 @@ public class OliThink {
 	final static String pieceChar = "*PNK.BRQ";
 	static long maxtime, starttime;
 	static boolean ponder = false, pondering = false, analyze = false, ics = false;;
-	static int pon = 0, sabort = 0;
-	static int sd = 64;
+	static int pon = 0, sabort = 0, sd = 64;
 
 	static int count, flags, mat, onmove, engine =-1;
 	final static int[] kingpos = new int[2];
@@ -298,7 +298,7 @@ public class OliThink {
 		return (byte)Long.numberOfTrailingZeros(bm); // _bitcnt((bm & -bm) -1);
 	}
 
-	static byte _bitcnt(long bit) {
+	static byte bitcnt(long bit) {
 		return (byte)Long.bitCount(bit);
 	}
 
@@ -422,7 +422,7 @@ public class OliThink {
 		Method key = c.getDeclaredMethod(skey, long.class, int.class);
 		for (f = 0; f < 64; f++) {
 			mmask = (Long) rayFunc.invoke(c, f, 0L, 0) | BIT[f];
-			iperm = 1 << (bc = _bitcnt(mmask));
+			iperm = 1 << (bc = bitcnt(mmask));
 			for (i = 0; i < iperm; i++) {
 				board = _occ_free_board(bc, i, mmask);
 				move = (Long) rayFunc.invoke(c, f, board, 1);
@@ -537,7 +537,7 @@ public class OliThink {
 			for (i = COUNT() - 2; i >= n; i--) 
 				if (hstack[i] == hp && ++c == nrep) return 1; 
 		} else if ((pieceb[PAWN] | RQU()) == 0) { //Check for mating material
-			if (_bitcnt(BOARD()) <= 3) return 3;
+			if (bitcnt(BOARD()) <= 3) return 3;
 		}
 		return 0;
 	}
@@ -668,7 +668,7 @@ public class OliThink {
 
 	static int generateCheckEsc(long ch, long apin, int c, int k, Movep mp) {
 		long cc, fl;
-		int d, bf = _bitcnt(ch);
+		int d, bf = bitcnt(ch);
 		colorb[c] ^= BIT[k];
 		regKings(PREMOVE(k, KING, c), KCAP(k, c), mp, c, 1);
 		regKings(PREMOVE(k, KING, c), KMOVE(k), mp, c, 0);
@@ -989,7 +989,7 @@ public class OliThink {
 		return ~(b | pawnAttack(c^1));
 	}
 
-	static int MOBILITY(long a, long mb) { return _bitcnt(a) + _bitcnt(a & mb); }
+	static int MOBILITY(long a, long mb) { return bitcnt(a) + bitcnt(a & mb); }
 	/* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 	static int evalc(int c) {
 		int f, mn = 0, katt = 0, egf = 5200/(40 + sf[c]);
@@ -1012,7 +1012,7 @@ public class OliThink {
 			}
 			
 			a = POCC(f, c);
-			if (a != 0) ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
+			if (a != 0) ppos += bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 			if ((a & kn) != 0) katt += MOBILITY(a & kn, mb) << 3;
 			mn += ppos;
 		}
@@ -1073,16 +1073,15 @@ public class OliThink {
 
 			if ((a & kn) != 0) katt += MOBILITY(a & kn, mb) << 3;
 			int t = p | getDir(f, kingpos[c]);
-			if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
-			if ((t & 18) == 18) mn += _bitcnt(RATT2(f));
-			if ((t & 33) == 33) mn += _bitcnt(BATT3(f));
-			if ((t & 65) == 65) mn += _bitcnt(BATT4(f));
+			if ((t & 10) == 10) mn += bitcnt(RATT1(f));
+			if ((t & 18) == 18) mn += bitcnt(RATT2(f));
+			if ((t & 33) == 33) mn += bitcnt(BATT3(f));
+			if ((t & 65) == 65) mn += bitcnt(BATT4(f));
 		}
 
 		colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 		colorb[oc] ^= BIT[kingpos[oc]]; //Back
-		if (sf[c] < 14) katt = katt * sf[c] / 14; //Reduce the bonus for attacking king squares
-		return mn + 3*katt/2;
+		return mn + katt * sf[c] / 17; //Reduce the bonus for attacking king squares
 	}
 
 	static int kmobilf(int c) {
@@ -1190,11 +1189,10 @@ public class OliThink {
 		return r;
 	}
 
-	static final int NO_MOVE = 0, ANY_MOVE = 1, GOOD_MOVE = 2;
 	static long HASHP(int c) { return (hashb ^ hashxor[flags | 1024 | (c << 11)]); }
-	static int search(long ch, int c, int d, int ply, int alpha, int beta, boolean pvnode, boolean isnull) {
-		int i, j, n, w;
-		long hp, hismax = 0L;
+	static int search(long ch, int c, int d, int ply, int alpha, int beta, boolean isnull) {
+		int i, j, n, w = 0, oc = c^1;
+		boolean pvnode = beta > alpha + 1;
 
 		if (ply != 0) pv[ply][ply] = 0;
 		if ((++nodes & CNODES) == 0) {
@@ -1203,9 +1201,10 @@ public class OliThink {
 		}
 		if (sabort != 0) return alpha;
 
-		hp = HASHP(c);
+		long hp = HASHP(c), hismax = 0L;
 		if (ply != 0 && isDraw(hp, 1) != 0) return 0;
 
+		if (ch != 0) d++;
 		if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
 		
 		if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
@@ -1222,23 +1221,22 @@ public class OliThink {
 			}
 			if (hmove == 0) hmove = he.move;
 		}
-		
 
-		hstack[COUNT()] = hp;
-		if (ch == 0 && !pvnode && d <= 8) {
-			w = evallazy(c, mat);
-			if (w > beta + 85*d) return w;
+		if (ch == 0 && !pvnode) {
+			w = d < 2 ? evallazy(c, mat) : eval(c, mat);
+			if (d < 2 && w + 500 < alpha) return quiesce(ch, c, ply, alpha, beta);
+			if (d <= 8 && w - 85*d > beta) return w;
 		}
 
+		hstack[COUNT()] = hp;
 		//Null Move - pvnode => null == 0
-		isnull = isnull && ch == 0 && d > 1 && (ply < 2 || (mstack[COUNT()-2] >> 27) != 0);
-		if (isnull && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
-			int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
+		isnull = isnull && ch == 0 && d > 1 && w > alpha && (ply < 2 || (mstack[COUNT()-2] >> 27) != 0);
+		if (isnull && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], oc))) > 1) {
+			int R = (10 + d + nullvariance(w - alpha))/4;
 			doMove(0, c);
-			w = -search(0L, c^1, d-R, ply+1, -beta, 1-beta, false, false); //Null Move Search
+			w = -search(0L, oc, d-R, ply+1, -beta, 1-beta, false); //Null Move Search
 			undoMove(0, c);
-			if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, false, false);
-			if (sabort == 0 && w >= beta) return beta;
+			if (sabort == 0 && w >= beta) return w >= MAXSCORE-500 ? beta : w;
 		}
 
 		if (d >= 5 && hmove == 0) { // Internal Iterative Reduction (IIR)
@@ -1246,7 +1244,7 @@ public class OliThink {
 		}
 
 		int evilqueen = 0;
-		if ((pieceb[QUEEN] & colorb[c^1]) != 0) evilqueen = getLsb(pieceb[QUEEN] & colorb[c^1]);
+		if ((pieceb[QUEEN] & colorb[oc]) != 0) evilqueen = getLsb(pieceb[QUEEN] & colorb[oc]);
 		if (evilqueen != 0 && battacked(evilqueen, c^1, 0L)) evilqueen = 0;
 
 		Movep mp = Movep.get(ply);
@@ -1275,13 +1273,12 @@ public class OliThink {
 				doMove(m, c);
 
 				nch = attacked(kingpos[c^1], c^1);
-				if (nch != 0) ext++; // Check Extension
-				else if (pvnode || ch != 0); // Don't reduce pvnodes and check evasions
+				if (nch != 0 || pvnode || ch != 0); // Don't reduce pvnodes and check evasions
 				else if (n == 2 && d >= 2 && PROM(m) == 0 && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
 				else if (n == 3) { //LMR
 					if (m == killer[ply]); //Don't reduce killers
-					else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[c^1]) == 0); 
-					else if (evilqueen != 0 && battacked(evilqueen, c^1, 0) && swap(m) >= 0); //Don't reduce queen attacks
+					else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[oc]) == 0); 
+					else if (evilqueen != 0 && battacked(evilqueen, oc, 0) && swap(m) >= 0); //Don't reduce queen attacks
 					else {
 						long his = history[m & 0x1FFF];
 						if (his > hismax) { hismax = his;} 
@@ -1292,11 +1289,11 @@ public class OliThink {
 				if (PROM(m) == QUEEN) ext++;
 
 				if (first == NO_MOVE && pvnode) {
-					w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, true, false);
+					w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, false);
 				} else {
-					w = -search(nch, c^1, d-1+ext, ply+1, -alpha-1, -alpha, false, true);
-					if (w > alpha && ext < 0) w = -search(nch, c^1, d-1, ply+1, -alpha-1, -alpha, false, true);
-					if (w > alpha && w < beta && pvnode) w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, true, false);
+					w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, true);
+					if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, true);
+					if (w > alpha && w < beta && pvnode) w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, false);
 				}
 				undoMove(m, c);
 				if (sabort != 0) return alpha;
@@ -1470,7 +1467,7 @@ public class OliThink {
 				if (alpha < -pval[QUEEN]*2) alpha = -MAXSCORE;
 				if (beta > pval[QUEEN]*2) beta = MAXSCORE;
 
-				w = search(ch, onmove, d, 0, alpha, beta, true, false);
+				w = search(ch, onmove, d, 0, alpha, beta, false);
 				if (sabort != 0) break;
 
 				if (w <= alpha) { alpha -= delta; beta = (alpha + beta)/2; }
@@ -1674,8 +1671,8 @@ public class OliThink {
 		_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], 0);
 		_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], 1);
 
-		for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i]))*8;
-		for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i]));
+		for (i = 0; i < 64; i++) nmobil[i] = (bitcnt(nmoves[i]))*8;
+		for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i]));
 		for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7 -(i&7) +i/8];
 		newGame();
 
