@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 09.Oct.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 16.Oct.2020, ob112@web.de, http://brausch.org
 
-Version: 5.8.6 Java
+Version: 5.8.7 Java
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 192MB data (occupying more than 2GB of Heap Space in Java)
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1715
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.8.7: changes since 5.8.6:
+Remove evil Queen. Negative history heuristics.
 
 v5.8.6: changes since 5.8.5:
 King mobil corner eval. Razoring change. Static eval into hash. Fix opening bug.
