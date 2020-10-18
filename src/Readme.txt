@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 16.Oct.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 18.Oct.2020, ob112@web.de, http://brausch.org
 
-Version: 5.8.7 Java
+Version: 5.8.8 Java
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 192MB data (occupying more than 2GB of Heap Space in Java)
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1715
+LinesOfCode: 1694
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.8.8: changes since 5.8.7:
+Progress to 7th rank is in noisy phase. IIR since depth 4. Symmatric end game factor. Simplify MovGen.
 
 v5.8.7: changes since 5.8.6:
 Remove evil Queen. Negative history heuristics.

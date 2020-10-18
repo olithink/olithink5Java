@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 16.Oct.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 18.Oct.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	static final String VER = "5.8.7 Java";
+	static final String VER = "5.8.8 Java";
 	static final Class<?> otclass = OliThink.class;
 
 	static final int PAWN = 1, KNIGHT = 2, KING = 3, ENP = 4, BISHOP = 5, ROOK = 6, QUEEN = 7;
@@ -79,7 +79,10 @@ public class OliThink {
 	static long PCA4(int x, int c) {
 		return (pcaps[(c)][(x) | 128] & (colorb[(c)^1] | (BIT[ENPASS()] & (c == 1? 0xFF0000L : 0xFF0000000000L)))); }
 
-	static boolean RANK(int x, int y) { return (((x) & 0x38) == (y)); }
+	static boolean RANK7(int f, int c) { return (((f) & 0x38) == ((c != 0) ? 0x08 : 0x30)); }
+	static boolean RANK6(int f, int c) { return (((f) & 0x38) == ((c != 0) ? 0x10 : 0x28)); }
+	static boolean RANK4(int f, int c) { return (((f) & 0x38) == ((c != 0) ? 0x20 : 0x18)); }
+	static boolean RANK2(int f, int c) { return (((f) & 0x38) == ((c != 0) ? 0x30 : 0x08)); }
 	static boolean TEST(int f, long b) { return (BIT[f] & (b)) != 0; }
 	static int ENPASS() { return (flags & 63); }
 	static int CASTLE() { return (flags & 960); }
@@ -533,10 +536,10 @@ public class OliThink {
 	}
 
 	/* precondition: f and t are on common rank (8), file (16), diagonal (32) or antidiagonal (64) */
-	static byte getDir(int f, int t) {
+	static int getDir(int f, int t) {
 		if (((f ^ t) & 56) == 0) return 8;
 		if (((f ^ t) & 7) == 0) return 16;
-		return (byte)(((f - t) % 9) == 0 ? 32 : 64);
+		return ((f - t) % 9) == 0 ? 32 : 64;
 	}
 
 	static int changeMat(int m, int c, int d) {
@@ -661,12 +664,12 @@ public class OliThink {
 
 		cc = attacked(bf, c^1) & apin;  //Can we capture the checker?
 		while (cc != 0) {
-			int cf = getLsb(cc); cc &= cc -1;
-			int p = identPiece(cf);
-			if (p == PAWN && RANK(cf, c != 0 ? 0x08 : 0x30)) {
-				regPromotions(cf, c, ch, mp, 1, 1);
+			int f = getLsb(cc); cc &= cc -1;
+			int p = identPiece(f);
+			if (p == PAWN && RANK7(f, c)) {
+				regPromotions(f, c, ch, mp, 1, 1);
 			} else {
-				regMovesCaps(PREMOVE(cf, p, c), ch, 0L, mp);
+				regMovesCaps(PREMOVE(f, p, c), ch, 0L, mp);
 			}
 		}
 		if (ENPASS() != 0 && (ch & pieceb[PAWN]) != 0) { //Enpassant capture of attacking Pawn
@@ -696,51 +699,38 @@ public class OliThink {
 			bf = c != 0 ? f+8 : f-8;
 			if (bf < 0 || bf > 63) continue;
 			if ((BIT[bf] & pieceb[PAWN] & colorb[c] & apin) != 0) {
-				if (RANK(bf, c != 0 ? 0x08 : 0x30))
+				if (RANK7(bf, c))
 					regPromotions(bf, c, BIT[f], mp, 0, 1);
 				else
 					regMovesCaps(PREMOVE(bf, PAWN, c), 0L, BIT[f], mp);
 			}
-			if (RANK(f, c != 0 ? 0x20 : 0x18) && (BOARD() & BIT[bf]) == 0
+			if (RANK4(f, c) && (BOARD() & BIT[bf]) == 0
 					&& (BIT[c != 0 ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin) != 0)
 						regMovesCaps(PREMOVE(c != 0 ? f+16 : f-16, PAWN, c), 0L, BIT[f], mp);
 		}
 		return 1;
 	}
 
-	static void generateNonCaps(int c, int f, long pin, Movep mp) {
+	static void generateQuiet(int c, int f, long pin, Movep mp) {
 		long m, b, cb = colorb[c] & (~pin);
 
 		regKings(PREMOVE(f, KING, c), KMOVE(f), mp, c, 0);
 
-		b = pieceb[PAWN] & cb;
-		while (b != 0) {
-			f = getLsb(b); b &= b - 1;
-			m = PMOVE(f, c);
-			if (m != 0 && RANK(f, c != 0 ? 0x30 : 0x08)) m |= PMOVE(c != 0 ? f-8 : f+8, c);
-			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
-				long a = PCAP(f, c);
-				if (a != 0L) regPromotions(f, c, a, mp, 1, 0);
-				regPromotions(f, c, m, mp, 0, 0);
-			} else {
-				regMoves(PREMOVE(f, PAWN, c), m, mp, 0);
-			}
-		}
 
-		b = pin & pieceb[PAWN];
+		b = pieceb[PAWN] & colorb[c];
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			int t = getDir(f, kingpos[c]);
+			int t = (BIT[f] & pin) != 0 ? getDir(f, kingpos[c]) : 144;
 			if ((t & 8) != 0) continue;
-			m = 0L;
 			if ((t & 16) != 0) {
 				m = PMOVE(f, c);
-				if (m != 0 && RANK(f, c != 0 ? 0x30 : 0x08)) m |= PMOVE(c != 0 ? f-8 : f+8, c);
-			}
-			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
-				long a = (t & 32) != 0 ? PCA3(f, c) : ((t & 64) != 0 ? PCA4(f, c) : 0L);
-				if (a != 0L) regPromotions(f, c, a, mp, 1, 0);
-			} else {
+				if (m != 0 && RANK2(f, c)) m |= PMOVE(c != 0 ? f-8 : f+8, c);
+			} else m = 0;
+			if (RANK7(f, c)) {
+				long a = (t & 128) != 0 ? PCAP(f, c) : (t & 32) != 0 ? PCA3(f, c) : ((t & 64) != 0 ? PCA4(f, c) : 0L);
+				if (a != 0) regPromotions(f, c, a, mp, 1, 0);
+				if (m != 0) regPromotions(f, c, m, mp, 0, 0);
+			} else if (!RANK6(f, c)) {
 				regMoves(PREMOVE(f, PAWN, c), m, mp, 0);
 			}
 		}
@@ -794,45 +784,35 @@ public class OliThink {
 		}
 	}
 
-	static void generateCaps(int c, int f, long pin, Movep mp) {
+	static void generateNoisy(int c, int f, long pin, Movep mp) {
 		long m, b, a, cb = colorb[c] & (~pin);
 
 		regKings(PREMOVE(f, KING, c), KCAP(f, c), mp, c, 1);
 
-		b = pieceb[PAWN] & cb;
+		b = pieceb[PAWN] & colorb[c];
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			a = PCAP(f, c);
-			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
-				regMovesCaps(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, PMOVE(f, c), mp);
+			int t = (BIT[f] & pin) != 0 ? getDir(f, kingpos[c]) : 144;
+			if ((t & 8) != 0) continue;
+			if ((t & 16) != 0) {
+				m = PMOVE(f, c); a = (t & 128) != 0 ? PCAP(f, c) : 0;
+			} else if ((t & 32) != 0) {
+				m = 0; a = PCA3(f, c);
+			} else { // if (t & 64)
+				m = 0; a = PCA4(f, c);
+			}
+			if (RANK7(f, c)) {
+				regMovesCaps(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, m, mp);
+			} else if (RANK6(f, c)) {
+				regMovesCaps(PREMOVE(f, PAWN, c), a, m, mp);
 			} else {
-				if (ENPASS() != 0 && (BIT[ENPASS()] & pcaps[(c)][(f)]) != 0) {
+				if ((t & 128) != 0 && ENPASS() != 0 && (BIT[ENPASS()] & pcaps[(c)][(f)]) != 0) {
 					colorb[c^1] ^= BIT[ENPASS()^8];
 					if ((ROCC1(f) & BIT[kingpos[c]]) == 0 || (ROCC1(f) & colorb[c^1] & RQU()) == 0) {
 						a = a | BIT[ENPASS()];
 					}
 					colorb[c^1] ^= BIT[ENPASS()^8];
 				}
-				regMoves(PREMOVE(f, PAWN, c), a, mp, 1);
-			}
-		}
-
-		b = pin & pieceb[PAWN];
-		while (b != 0) {
-			f = getLsb(b); b &= b - 1;
-			int t = getDir(f, kingpos[c]);
-			if ((t & 8) != 0) continue;
-			m = a = 0L;
-			if ((t & 16) != 0) {
-				m = PMOVE(f, c);
-			} else if ((t & 32) != 0) {
-				a = PCA3(f, c);
-			} else {
-				a = PCA4(f, c);
-			}
-			if (RANK(f, c != 0 ? 0x08 : 0x30)) {
-				regMovesCaps(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, m, mp);
-			} else {
 				regMoves(PREMOVE(f, PAWN, c), a, mp, 1);
 			}
 		}
@@ -873,14 +853,14 @@ public class OliThink {
 		}
 	}
 
-	static int generate(long ch, int c, Movep mp, boolean cap, boolean noncap) {
+	static int generate(long ch, int c, Movep mp, boolean noisy, boolean quiet) {
 		int f = kingpos[c];
 		long pin = pinnedPieces(f, c^1);
 		mp.n = 0;
 
 		if (ch != 0L) return generateCheckEsc(ch, ~pin, c, f, mp);
-		if (cap) generateCaps(c, f, pin, mp);
-		if (noncap) generateNonCaps(c, f, pin, mp);
+		if (noisy) generateNoisy(c, f, pin, mp);
+		if (quiet) generateQuiet(c, f, pin, mp);
 		return 0;
 	}
 
@@ -977,7 +957,7 @@ public class OliThink {
 	static int MOBILITY(long a, long mb) { return bitcnt(a) + bitcnt(a & mb); }
 	/* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 	static int evalc(int c) {
-		int f, mn = 0, katt = 0, egf = 5200/(40 + sf[c]);
+		int f, mn = 0, katt = 0, egf = 10400/(80 + sf[c] + sf[c^1]);
 		int oc = c^1;
 		long b, a, cb, ocb = colorb[oc], mb = sf[c] != 0 ? mobilityb(c) : 0L;
 		long kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
@@ -1087,16 +1067,14 @@ public class OliThink {
 		return ev + (c != 0 ? -matrl : matrl);
 	}
 
-	static long eval1 = 0;
+	static long eval1, nodes, qnodes;
 	static int eval(int c, int matrl) {
 		int ev = evalc(c) - evalc(c^1);
 		eval1++;
 
 		return ev + evallazy(c, matrl);
 	}
-
-	static long nodes, qnodes;
-	static int t1, t2;
+	
 	static int quiesce(long ch, int c, int ply, int alpha, int beta) {
 		int i, best = -MAXSCORE;
 		if (ply == 127) return eval(c, mat);
@@ -1150,7 +1128,6 @@ public class OliThink {
 	static String base;
 	static int time = 30000, mps = 0, inc = 0, st = 0;
 	static boolean post = true;
-
 	static int inputSearch() {
 		int ex;
 		irbuf.append(inString.pollFirst());
@@ -1237,7 +1214,7 @@ public class OliThink {
 			if (sabort == 0 && w >= beta) return w >= MAXSCORE-500 ? beta : w;
 		}
 
-		if (d >= 5 && hmove == 0) { // Internal Iterative Reduction (IIR)
+		if (d >= 4 && hmove == 0) { // Internal Iterative Reduction (IIR)
 			d--;
 		}
 
@@ -1483,7 +1460,7 @@ public class OliThink {
 
 			t1 = (int)(getTime() - starttime);
 			if (post && pv[0][0] != 0 && (sabort == 0 || (sabort >= 1 && !analyze)) && w > -MAXSCORE) {
-				printf(String.format("%2d %5d %6d %9d  ", d, MEVAL(w), t1/10, nodes + qnodes));
+				printf(String.format("%2d %5d %6d %9d  ", d, MEVAL(w), (t1+4)/10, nodes + qnodes));
 				displaypv(); printf("\n");
 			}
 			if (sabort != 0) break;
