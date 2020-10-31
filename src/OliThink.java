@@ -847,8 +847,8 @@ public class OliThink {
 		return 0;
 	}
 
+	static int[] s_list = new int[32];
 	static int swap(int m) { //SEE
-		int[] s_list = new int[32];
 		int f = FROM(m), t = TO(m), c = ONMV(m);
 		int a_piece = pval[CAP(m)], piece = PIECE(m), nc = 1;
 		long temp = 0;
