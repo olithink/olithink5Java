@@ -1,17 +1,20 @@
-OliThink5 (c) Oliver Brausch 23.Oct.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 30.Oct.2020, ob112@web.de, http://brausch.org
 
-Version: 5.8.9 Java
+Version: 5.9.0 Java
 Protocol: CECP v2 (winboard/xboard)
-HashSize: 128MB data (occupying more than 2GB of Heap Space in Java)
+HashSize: 128MB data (in Java about triple size)
 Ponder: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1664
+LinesOfCode: 1653
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.9.0: changes since 5.8.9:
+Fix several small bugs. Avoid many instances in swap.
 
 v5.8.9: changes since 5.8.8:
 Reduce hash. More aggressiv evaluation. Code cleanup. Command random.
