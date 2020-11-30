@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 30.Oct.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 13.Nov.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	static final String VER = "5.9.0 Java";
+	static final String VER = "5.9.1";
 	static final Class<?> otclass = OliThink.class;
 
 	static final int PAWN = 1, KNIGHT = 2, KING = 3, ENP = 4, BISHOP = 5, ROOK = 6, QUEEN = 7;
@@ -115,6 +115,7 @@ public class OliThink {
 	static long hashb = 0L;
 	static final long[] hstack = new long[0x400];
 	static final long[] mstack = new long[0x400];
+	static final int[] wstack = new int[0x400];
 
 	static final long[] BIT = new long[64];
 	static final long[] hashxor = new long[4096];
@@ -1175,7 +1176,7 @@ public class OliThink {
 			if (hmove == 0) hmove = he.move;
 		}
 
-		int wstat = ch != 0 ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c);
+		int wstat = wstack[COUNT()] = ch != 0 ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c);
 		if (ch == 0 && !pvnode && beta > -MAXSCORE+500) {
 			if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
 			if (d <= 8 && wstat - 88*d > beta) return wstat;
@@ -1198,6 +1199,7 @@ public class OliThink {
 		}
 
 		Movep mp = Movep.get(ply); mp.nquiet = 0;
+		int raising = ch == 0 && ply >= 2 && wstat >= wstack[COUNT()-2] ? 1 : 0;
 		int first = NO_MOVE; long hismax = -1L;
 		for (n = HASH; n <= ((ch != 0L) ? NOISY : QUIET); n++) {
 			if (n == HASH) {
@@ -1209,22 +1211,21 @@ public class OliThink {
 				generate(ch, c, mp, false, true);
 			}
 			for (i = 0; i < mp.n; i++) {
-				int m;
-				long nch;
-				int ext = 0;
-				if (n == HASH) {
-					m = hmove;
-				} else {
-					if (n == NOISY) m = qpick(mp, i);
-					else m = spick(mp, i, ply);
-					if (m == hmove) continue;
-					if (first != NO_MOVE && STDSCORE(beta,  alpha) && d <= 8 && swap(m) < -d*60) continue;
+				int m = n == HASH ? hmove : n == NOISY ? qpick(mp, i) : spick(mp, i, ply);
+				if (n != HASH && m == hmove) continue;
+
+				boolean quiet = CAP(m) == 0 && PROM(m) == 0;
+				if (ch == 0 && quiet && mp.nquiet > 2*d*(raising+1)) {
+					n = EXIT; break; // LMP
 				}
+				if (n != HASH && first != NO_MOVE && STDSCORE(beta, alpha) && d <= 8 && swap(m) < -d*60) continue;
+
+				int ext = 0;
 				doMove(m, c);
-				if (CAP(m) == 0 && PROM(m) == 0) mp.quiets[mp.nquiet++] = m;
-				nch = attacked(kingpos[c^1], c^1);
+				if (quiet) mp.quiets[mp.nquiet++] = m;
+				long nch = attacked(kingpos[c^1], c^1);
 				if (nch != 0 || pvnode || ch != 0); // Don't reduce pvnodes and check evasions
-				else if (n == NOISY && d >= 2 && PROM(m) == 0 && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
+				else if (n == NOISY && d >= 2 && PROM(m) == 0 && swap(m) < 0) ext-= (d + 1)/(3+raising); //R bad exchs
 				else if (n == QUIET) { //LMR
 					if (m == killer[ply]); //Don't reduce killers
 					else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[oc]) == 0);
@@ -1235,15 +1236,12 @@ public class OliThink {
 						else if (d >= 2) ext-= (d + 1)/3;
 					}
 				}
-				if (PROM(m) == QUEEN) ext++;
+				
+				boolean firstPVNode = first == NO_MOVE && pvnode;
+				if (!firstPVNode) w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, true);
+				if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, true);
+				if ((w > alpha && w < beta) || firstPVNode) w = -search(nch, oc, d-1, ply+1, -beta, -alpha, false);
 
-				if (first == NO_MOVE && pvnode) {
-					w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, false);
-				} else {
-					w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, true);
-					if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, true);
-					if (w > alpha && w < beta && pvnode) w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, false);
-				}
 				undoMove(m, c);
 				if (sabort != 0) return alpha;
 
@@ -1254,7 +1252,7 @@ public class OliThink {
 					pv[ply][j] = 0;
 
 					if (w >= beta) {
-						if (CAP(m) == 0 && PROM(m) == 0) {
+						if (quiet) {
 							int his = Math.min(d*d, 512);
 							killer[ply] = m;
 							history[m & 0x1FFF] += his;
