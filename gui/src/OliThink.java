@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 13.Nov.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 30.Nov.2020, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	static final String VER = "5.9.1";
+	static final String VER = "5.9.2";
 	static final Class<?> otclass = OliThink.class;
 
 	static final int PAWN = 1, KNIGHT = 2, KING = 3, ENP = 4, BISHOP = 5, ROOK = 6, QUEEN = 7;
@@ -507,17 +507,17 @@ public class OliThink {
 		System.err.print(s);
 	}
 
-	static long pinnedPieces(int f, int oc) {
+	static long pinnedPieces(int k, int oc) {
 		long pin = 0L;
-		long b = ((RXRAY1(f) | RXRAY2(f)) & colorb[oc]) & RQU();
+		long b = ((RXRAY1(k) | RXRAY2(k)) & colorb[oc]) & RQU();
 		while (b != 0) {
 			int t = getLsb(b); b &= b - 1;
-			pin |= RATT(f) & RATT(t) & colorb[oc^1];
+			pin |= RATT(k) & RATT(t) & colorb[oc^1];
 		}
-		b = ((BXRAY3(f) | BXRAY4(f)) & colorb[oc]) & BQU();
+		b = ((BXRAY3(k) | BXRAY4(k)) & colorb[oc]) & BQU();
 		while (b != 0) {
 			int t = getLsb(b); b &= b - 1;
-			pin |= BATT(f) & BATT(t) & colorb[oc^1];
+			pin |= BATT(k) & BATT(t) & colorb[oc^1];
 		}
 		return pin;
 	}
@@ -693,16 +693,16 @@ public class OliThink {
 		return 1;
 	}
 
-	static void generateQuiet(int c, int f, long pin, Movep mp) {
-		long m, b, cb = colorb[c] & (~pin);
+	static void generateQuiet(int c, int k, long pin, Movep mp) {
+		long m, b, cb = colorb[c] & (~pin); int f;
 
-		regKings(PREMOVE(f, KING, c), KMOVE(f), mp, c, 0);
+		regKings(PREMOVE(k, KING, c), KMOVE(k), mp, c, 0);
 
 
 		b = pieceb[PAWN] & colorb[c];
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			int t = (BIT[f] & pin) != 0 ? getDir(f, kingpos[c]) : 144;
+			int t = (BIT[f] & pin) != 0 ? getDir(f, k) : 144;
 			if ((t & 8) != 0) continue;
 			if ((t & 16) != 0) {
 				m = PMOVE(f, c);
@@ -758,7 +758,7 @@ public class OliThink {
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
 			int p = identPiece(f);
-			int t = p | getDir(f, kingpos[c]);
+			int t = p | getDir(f, k);
 			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RMOVE1(f), mp, 0);
 			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RMOVE2(f), mp, 0);
 			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BMOVE3(f), mp, 0);
@@ -766,15 +766,15 @@ public class OliThink {
 		}
 	}
 
-	static void generateNoisy(int c, int f, long pin, Movep mp) {
-		long m, b, a, cb = colorb[c] & (~pin);
+	static void generateNoisy(int c, int k, long pin, Movep mp) {
+		long m, b, a, cb = colorb[c] & (~pin); int f;
 
-		regKings(PREMOVE(f, KING, c), KCAP(f, c), mp, c, 1);
+		regKings(PREMOVE(k, KING, c), KCAP(k, c), mp, c, 1);
 
 		b = pieceb[PAWN] & colorb[c];
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			int t = (BIT[f] & pin) != 0 ? getDir(f, kingpos[c]) : 144;
+			int t = (BIT[f] & pin) != 0 ? getDir(f, k) : 144;
 			if ((t & 8) != 0) continue;
 			if ((t & 16) != 0) {
 				m = PMOVE(f, c); a = (t & 128) != 0 ? PCAP(f, c) : 0;
@@ -792,7 +792,7 @@ public class OliThink {
 			} else {
 				if ((t & 128) != 0 && ENPASS() != 0 && (BIT[ENPASS()] & pcaps[(c)][(f)]) != 0) {
 					colorb[2] ^= BIT[ENPASS()^8];
-					if ((RATT1(f) & BIT[kingpos[c]]) == 0 || (RATT1(f) & colorb[c^1] & RQU()) == 0) {
+					if ((RATT1(f) & BIT[k]) == 0 || (RATT1(f) & colorb[c^1] & RQU()) == 0) {
 						a = a | BIT[ENPASS()];
 					}
 					colorb[2] ^= BIT[ENPASS()^8];
@@ -829,7 +829,7 @@ public class OliThink {
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
 			int p = identPiece(f);
-			int t = p | getDir(f, kingpos[c]);
+			int t = p | getDir(f, k);
 			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RCAP1(f, c), mp, 1);
 			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RCAP2(f, c), mp, 1);
 			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BCAP3(f, c), mp, 1);
@@ -838,13 +838,13 @@ public class OliThink {
 	}
 
 	static int generate(long ch, int c, Movep mp, boolean noisy, boolean quiet) {
-		int f = kingpos[c];
-		long pin = pinnedPieces(f, c^1);
+		int k = kingpos[c];
+		long pin = pinnedPieces(k, c^1);
 		mp.n = 0;
 
-		if (ch != 0L) return generateCheckEsc(ch, ~pin, c, f, mp);
-		if (noisy) generateNoisy(c, f, pin, mp);
-		if (quiet) generateQuiet(c, f, pin, mp);
+		if (ch != 0L) return generateCheckEsc(ch, ~pin, c, k, mp);
+		if (noisy) generateNoisy(c, k, pin, mp);
+		if (quiet) generateQuiet(c, k, pin, mp);
 		return 0;
 	}
 
@@ -934,6 +934,15 @@ public class OliThink {
 		long b = c == 0 ? rankb[1] | (BOARD() >> 8) : rankb[6] | (BOARD() << 8);
 		b &= b & colorb[c] & pieceb[PAWN];
 		return ~(b | pawnAttack(c^1));
+	}
+
+	static int kmobilf(int c) {
+		int km = kmobil[kingpos[c]] << 2, sfo = sf[c^1];
+		if (sf[c] == 0  && sfo == 5 && pieceb[BISHOP] != 0 && pieceb[PAWN] == 0) { // BNK_vs_k
+			int bc = bishcorn[kingpos[c]] << 5;
+			if ((pieceb[BISHOP] & whitesq) != 0) km += bc; else km -= bc;
+		}
+		return sfo < 14 ? km : km * (16 - sfo) /4;
 	}
 
 	static int MOBILITY(long a, long mb) { return bitcnt(a) + bitcnt(a & mb); }
@@ -1027,25 +1036,7 @@ public class OliThink {
 
 		colorb[2] ^= pieceb[QUEEN] & ocb; //Back
 		colorb[2] ^= BIT[kingpos[oc]]; //Back
-		return mn + katt * (sf[c] + 3) / 15; //Reduce the bonus for attacking king squares
-	}
-
-	static int kmobilf(int c) {
-		int km = kmobil[kingpos[c]] << 2, sfo = sf[c^1];
-		if (sf[c] == 0  && sfo == 5 && pieceb[BISHOP] != 0 && pieceb[PAWN] == 0) { // BNK_vs_k
-			int bc = bishcorn[kingpos[c]] << 5;
-			if ((pieceb[BISHOP] & whitesq) != 0) km += bc; else km -= bc;
-		}
-		return sfo < 14 ? km : km * (16 - sfo) /4;
-	}
-
-	static int evallazy(int c, int matrl) {
-		int ev = kmobilf(c) - kmobilf(c^1);
-
-		if ((matrl < 0 && NOMATEMAT(1)) || (matrl > 0 && NOMATEMAT(0)))
-			matrl = 0;
-
-		return ev + (c != 0 ? -matrl : matrl);
+		return mn + kmobilf(c) + katt * (sf[c] + 3) / 15; //Reduce the bonus for attacking king squares
 	}
 
 	static long eval1, nodes, qnodes;
@@ -1053,7 +1044,10 @@ public class OliThink {
 		int ev = evalc(c) - evalc(c^1);
 		eval1++;
 
-		return ev + evallazy(c, MAT());
+		if ((MAT() < 0 && NOMATEMAT(1)) || (MAT() > 0 && NOMATEMAT(0)))
+			return ev;
+		
+		return ev + (c != 0 ? -MAT() : MAT());
 	}
 	
 	static int quiesce(long ch, int c, int ply, int alpha, int beta) {
@@ -1061,7 +1055,7 @@ public class OliThink {
 		if (ply == 127) return eval(c);
 
 		if (ch == 0) do {
-			int cmat = evallazy(c, MAT());
+			int cmat = c != 0 ? -MAT() : MAT();
 			if (cmat - 125 >= beta) return beta;
 			if (cmat + 85 <= alpha) break;
 			best = eval(c);
