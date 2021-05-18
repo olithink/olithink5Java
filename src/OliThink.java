@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 11.May.2021, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 17.May.2021, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	static final String VER = "5.9.4";
+	static final String VER = "5.9.5";
 	static final Class<?> otclass = OliThink.class;
 
 	static final int PAWN = 1, KNIGHT = 2, KING = 3, ENP = 4, BISHOP = 5, ROOK = 6, QUEEN = 7;
@@ -104,7 +104,7 @@ public class OliThink {
 		int list[] = new int[128];
 		int nquiet;
 		int quiets[] = new int[128];
-		static Movep[] movep = new Movep[256];
+		static Movep[] movep = new Movep[512];
 		static Movep get(int p) {
 			if (movep[p] == null) movep[p] = new Movep();
 			return movep[p];
@@ -1031,7 +1031,7 @@ public class OliThink {
 			}
 		} while(false);
 
-		Movep mp = Movep.get(ply); generate(ch, c, mp, true, false);
+		Movep mp = Movep.get(ply << 1); generate(ch, c, mp, true, false);
 		if (ch != 0 && mp.n == 0) return -MAXSCORE + ply;
 
 		for (i = 0; i < mp.n; i++) {
@@ -1058,7 +1058,7 @@ public class OliThink {
 
 	static int retPVMove(int c, int ply) {
 		int i;
-		Movep mp = Movep.get(ply); generate(attacked(kingpos[c], c), c, mp, true, true);
+		Movep mp = Movep.get(ply << 1); generate(attacked(kingpos[c], c), c, mp, true, true);
 		for (i = 0; i < mp.n; i++) {
 			int m = mp.list[i];
 			if (m == pv[0][ply]) return m;
@@ -1104,7 +1104,7 @@ public class OliThink {
 
 	static boolean STDSCORE(int b, int w) { return b > -MAXSCORE+500 && w > -MAXSCORE+500 && w < MAXSCORE-500; }
 	static long HASHP(int c) { return (hashb ^ hashxor[flags | 1024 | (c << 11)]); }
-	static int search(long ch, int c, int d, int ply, int alpha, int beta, boolean isnull) {
+	static int search(long ch, int c, int d, int ply, int alpha, int beta, boolean isnull, int sem) {
 		int i, j, n, w = 0, oc = c^1;
 		boolean pvnode = beta > alpha + 1;
 
@@ -1128,7 +1128,7 @@ public class OliThink {
 		int hmove = ply != 0 ? 0 : retPVMove(c, ply);
 
 		Entry he = hashDB[(int)(hp & HMASK)]; if (he == null) hashDB[(int)(hp & HMASK)] = he = new Entry();
-		if (he.key == hp) {
+		if (he.key == hp && sem == 0) {
 			if (he.depth >= d) {
 				if (he.type <= EXACT && he.value >= beta) return beta;
 				if (he.type >= EXACT && he.value <= alpha) return alpha;
@@ -1149,7 +1149,7 @@ public class OliThink {
 		if (isnull && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], oc))) > 1) {
 			int R = (10 + d + nullvariance(wstat - alpha))/4;
 			doMove(0, c);
-			w = -search(0L, oc, d-R, ply+1, -beta, 1-beta, false); //Null Move Search
+			w = -search(0L, oc, d-R, ply+1, -beta, 1-beta, false, 0); //Null Move Search
 			undoMove(0, c);
 			if (sabort == 0 && w >= beta) return w >= MAXSCORE-500 ? beta : w;
 		}
@@ -1158,13 +1158,18 @@ public class OliThink {
 			d--;
 		}
 
-		Movep mp = Movep.get(ply); mp.nquiet = 0;
+		Movep mp = Movep.get((ply << 1) + (sem != 0 ? 1 : 0)); mp.nquiet = 0;
 		int raising = ch == 0 && ply >= 2 && wstat >= wstack[COUNT()-2] ? 1 : 0;
 		int first = NO_MOVE; long hismax = -1L;
 		for (n = HASH; n <= ((ch != 0L) ? NOISY : QUIET); n++) {
+			int nd = d - 1;
 			if (n == HASH) {
 				if (hmove == 0) continue;
 				mp.n = 1;
+				if (d >= 8 && ply != 0 && STDSCORE(beta, alpha) && he.type == LOWER && he.depth >= d - 3) {
+					int bc = he.value - d;
+					nd += search(ch, c, d >> 1, ply, bc-1, bc, false, hmove) < bc ? 1 : 0;  // Singular extensions
+				}
 			} else if (n == NOISY) {
 				generate(ch, c, mp, true, false);
 			} else {
@@ -1172,7 +1177,7 @@ public class OliThink {
 			}
 			for (i = 0; i < mp.n; i++) {
 				int m = n == HASH ? hmove : n == NOISY ? qpick(mp, i) : spick(mp, i, ply);
-				if (n != HASH && m == hmove) continue;
+				if ((n != HASH && m == hmove) || m == sem) continue;
 
 				boolean quiet = CAP(m) == 0 && PROM(m) == 0;
 				if (ch == 0 && quiet && mp.nquiet > 2*d*(raising+1)) {
@@ -1198,9 +1203,9 @@ public class OliThink {
 				}
 				
 				boolean firstPVNode = first == NO_MOVE && pvnode;
-				if (!firstPVNode) w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, true);
-				if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, true);
-				if ((w > alpha && w < beta) || firstPVNode) w = -search(nch, oc, d-1, ply+1, -beta, -alpha, false);
+				if (!firstPVNode) w = -search(nch, oc, nd+ext, ply+1, -alpha-1, -alpha, true, 0);
+				if (w > alpha && ext < 0) w = -search(nch, oc, nd, ply+1, -alpha-1, -alpha, true, 0);
+				if ((w > alpha && w < beta) || firstPVNode) w = -search(nch, oc, nd, ply+1, -beta, -alpha, false, 0);
 
 				undoMove(m, c);
 				if (sabort != 0) return alpha;
@@ -1228,7 +1233,7 @@ public class OliThink {
 			}
 		}
 		if (sabort != 0) return alpha;
-		if (first == NO_MOVE) alpha = ch != 0 ? -MAXSCORE+ply : 0;
+		if (first == NO_MOVE) alpha = ch != 0 || sem != 0 ? -MAXSCORE+ply : 0;
 
 		char type = UPPER;
 		if (first == GOOD_MOVE) { type = (char)(alpha >= beta ? LOWER : EXACT); hmove = pv[ply][ply]; } // Good move
@@ -1385,7 +1390,7 @@ public class OliThink {
 				if (alpha < -pval[QUEEN]*2) alpha = -MAXSCORE;
 				if (beta > pval[QUEEN]*2) beta = MAXSCORE;
 
-				w = search(ch, onmove, d, 0, alpha, beta, false);
+				w = search(ch, onmove, d, 0, alpha, beta, false, 0);
 				if (sabort != 0) break;
 
 				if (w <= alpha) { alpha -= delta; beta = (alpha + beta)/2; }
