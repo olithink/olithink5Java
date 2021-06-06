@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 17.May.2021, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 06.Jun.2021, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	static final String VER = "5.9.5";
+	static final String VER = "5.9.8";
 	static final Class<?> otclass = OliThink.class;
 
 	static final int PAWN = 1, KNIGHT = 2, KING = 3, ENP = 4, BISHOP = 5, ROOK = 6, QUEEN = 7;
@@ -21,7 +21,6 @@ public class OliThink {
 	static final int HMASK = HSIZE - 1;
 	static final int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
 	static final int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
-	static final int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 	static final int MAXSCORE = 16384;
 
 	static int FROM(int x) { return ((x) & 63); }
@@ -57,12 +56,7 @@ public class OliThink {
 	static long BCAP4(int f, int c) { return (BATT4(f) & colorb[(c)^1]); }
 	static long RATT(int f) { return (RATT1(f) | RATT2(f)); }
 	static long BATT(int f) { return (BATT3(f) | BATT4(f)); }
-	static long RMOVE(int f) { return (RMOVE1(f) | RMOVE2(f)); }
-	static long BMOVE(int f) { return (BMOVE3(f) | BMOVE4(f)); }
-	static long RCAP(int f, int c) { return (RCAP1(f, c) | RCAP2(f, c)); }
-	static long BCAP(int f, int c) { return (BCAP3(f, c) | BCAP4(f, c)); }
 
-	static long NMOVE(int x) { return (nmoves[x] & ~BOARD()); }
 	static long KMOVE(int x) { return (kmoves[x] & ~BOARD()); }
 	static long NCAP(int x, int c) { return (nmoves[x] & colorb[(c)^1]); }
 	static long KCAP(int x, int c) { return (kmoves[x] & colorb[(c)^1]); }
@@ -79,7 +73,7 @@ public class OliThink {
 	static boolean RANK4(int f, int c) { return (((f) & 0x38) == ((c != 0) ? 0x20 : 0x18)); }
 	static boolean RANK2(int f, int c) { return (((f) & 0x38) == ((c != 0) ? 0x30 : 0x08)); }
 	static int ENPASS() { return (flags & 63); }
-	static int CASTLE() { return (flags & 960); }
+	static boolean CASTLE(int c) { return (flags & (320 << c)) != 0; }
 	static int COUNT() { return (count & 0x3FF); }
 	static int MEVAL(int w) {
 		return w > MAXSCORE-500 ? (200000+MAXSCORE+1-w)/2 : (w < 500-MAXSCORE ? (-200000-MAXSCORE-w)/2 : w); }
@@ -289,7 +283,7 @@ public class OliThink {
 		for (i = 0; i < 64; i++) {
 			int rank = i/8, file = i&7;
 			int m = i + (c == 1 ? -8 : 8);
-			pawnprg[c][i] = pawnrun[c == 1 ? 7-rank : rank];
+			pawnprg[c][i] = 1 << (c != 0 ? 7-rank : rank);
 			for (j = 0; j < 64; j++) {
 				int jrank = j/8, jfile = j&7;
 				int dfile = (jfile - file)*(jfile - file);
@@ -555,7 +549,7 @@ public class OliThink {
 		if (a != 0) {
 			if (a == ENP) { // Enpassant Capture
 				t = (t&7) | (f&56); a = PAWN;
-			} else if (a == ROOK && CASTLE() != 0) { //Revoke castling rights.
+			} else if (a == ROOK && CASTLE(c^1)) { //Revoke castling rights.
 				flags &= crevoke[t];
 			}
 			pieceb[a] ^= BIT[t];
@@ -589,7 +583,7 @@ public class OliThink {
 				hashb ^= hashxor[(f) | (ROOK) << 6 | (c) << 9];
 				hashb ^= hashxor[(t) | (ROOK) << 6 | (c) << 9];
 			}
-		} else if (p == ROOK && CASTLE() != 0) {
+		} else if (p == ROOK && CASTLE(c)) {
 			flags &= crevoke[f];
 		}
 		colorb[2] = colorb[0] | colorb[1];
@@ -665,9 +659,9 @@ public class OliThink {
 		if ((ch & (nmoves[k] | kmoves[k])) != 0) return 1; //We can't move anything in between!
 
 		d = getDir(bf, k);
-		if ((d & 8) != 0) fl = RMOVE1(bf) & RMOVE1(k);
-		else if ((d & 16) != 0) fl = RMOVE2(bf) & RMOVE2(k);
-		else if ((d & 32) != 0) fl = BMOVE3(bf) & BMOVE3(k);
+		if (d == 8) fl = RMOVE1(bf) & RMOVE1(k);
+		else if (d == 16) fl = RMOVE2(bf) & RMOVE2(k);
+		else if (d == 32) fl = BMOVE3(bf) & BMOVE3(k);
 		else fl = BMOVE4(bf) & BMOVE4(k);
 
 		while (fl != 0) {
@@ -693,23 +687,33 @@ public class OliThink {
 		return 1;
 	}
 
-	static void generateQuiet(int c, int k, long pin, Movep mp) {
-		long m, b, cb = colorb[c] & (~pin); int f;
+	static void generatePinned(int c, int k, long pin, Movep mp, long tb, int cap) {
+		for (long b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); b != 0;) {
+			int f = getLsb(b); b &= b - 1;
+			int p = identPiece(f);
+			int t = p | getDir(f, k);
+			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RATT1(f) & tb, mp, cap);
+			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RATT2(f) & tb, mp, cap);
+			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BATT3(f) & tb, mp, cap);
+			if ((t & 65) == 65) regMoves(PREMOVE(f, p, c), BATT4(f) & tb, mp, cap);
+		}
+	}
 
-		regKings(PREMOVE(k, KING, c), KMOVE(k), mp, c, 0);
+	static void generateQuiet(int c, int k, long pin, Movep mp) {
+		int f; long b, cb = colorb[c] & (~pin); final long  tb = ~BOARD();
+
+		regKings(PREMOVE(k, KING, c), kmoves[k] & tb, mp, c, 0);
 
 
 		b = pieceb[PAWN] & colorb[c];
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			int t = (BIT[f] & pin) != 0 ? getDir(f, k) : 144;
-			if ((t & 8) != 0) continue;
-			if ((t & 16) != 0) {
-				m = PMOVE(f, c);
-				if (m != 0 && RANK2(f, c)) m |= PMOVE(c != 0 ? f-8 : f+8, c);
-			} else m = 0;
+			int t = (BIT[f] & pin) != 0 ? getDir(f, k) : 17;
+			if (t == 8) continue;
+			long m = (t & 16) != 0 ? PMOVE(f, c) : 0;
+			if (m != 0 && RANK2(f, c)) m |= PMOVE(c != 0? f-8 : f+8, c);
 			if (RANK7(f, c)) {
-				long a = (t & 128) != 0 ? PCAP(f, c) : (t & 32) != 0 ? PCA3(f, c) : ((t & 64) != 0 ? PCA4(f, c) : 0L);
+				long a = t == 17 ? PCAP(f, c) : t == 32 ? PCA3(f, c) : t == 64 ? PCA4(f, c) : 0L;
 				if (a != 0) regPromotions(f, c, a, mp, 1, 0);
 				if (m != 0) regPromotions(f, c, m, mp, 0, 0);
 			} else if (!RANK6(f, c)) {
@@ -717,72 +721,55 @@ public class OliThink {
 			}
 		}
 
-		b = pieceb[KNIGHT] & cb;
-		while (b != 0) {
-			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, KNIGHT, c), NMOVE(f), mp, 0);
-		}
-
-		b = pieceb[ROOK] & cb;
-		while (b != 0) {
-			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, ROOK, c), RMOVE(f), mp, 0);
-			if (CASTLE() != 0) {
-				if (c != 0) {
-					if ((flags & 128) != 0 && (f == 63) && (RMOVE1(63) & BIT[61]) != 0)
-						if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING, c), BIT[62], mp, 0);
-					if ((flags & 512) != 0 && (f == 56) && (RMOVE1(56) & BIT[59]) != 0)
-						if (!DUALATT(59, 58, c)) regMoves(PREMOVE(60, KING, c), BIT[58], mp, 0);
-				} else {
-					if ((flags & 64) != 0 && (f == 7) && (RMOVE1(7) & BIT[5]) != 0)
-						if (!DUALATT(5, 6, c)) regMoves(PREMOVE(4, KING, c), BIT[6], mp, 0);
-					if ((flags & 256) != 0 && (f == 0) && (RMOVE1(0) & BIT[3]) != 0)
-						if (!DUALATT(3, 2, c)) regMoves(PREMOVE(4, KING, c), BIT[2], mp, 0);
-				}
+		if (CASTLE(c)) {
+			for (b = pieceb[ROOK] & cb; b != 0;) {
+				f = getLsb(b); b &= b - 1;
+				if (f == 63 && c != 0 && (flags & 128) != 0 && (BOARD() & (3L << 61)) == 0)
+					if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING, c), 1L << 62, mp, 0);
+				if (f == 56 && c != 0 && (flags & 512) != 0 && (BOARD() & (7L << 57)) == 0)
+					if (!DUALATT(59, 58, c)) regMoves(PREMOVE(60, KING, c), 1L << 58, mp, 0);
+				if (f == 7 && c == 0 && (flags & 64) != 0 && (BOARD() & (3L << 5)) == 0)
+					if (!DUALATT(5, 6, c)) regMoves(PREMOVE(4, KING, c), 1L << 6, mp, 0);
+				if (f == 0 && c == 0 && (flags & 256) != 0 && (BOARD() & (7L << 1)) == 0)
+					if (!DUALATT(3, 2, c)) regMoves(PREMOVE(4, KING, c), 1L << 2, mp, 0);
 			}
 		}
-
-		b = pieceb[BISHOP] & cb;
-		while (b != 0) {
+		
+		for (b = pieceb[KNIGHT] & cb; b != 0;) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, BISHOP, c), BMOVE(f), mp, 0);
+			regMoves(PREMOVE(f, KNIGHT, c), nmoves[f] & tb, mp, 0);
 		}
 
-		b = pieceb[QUEEN] & cb;
-		while (b != 0) {
+		for (b = pieceb[ROOK] & cb; b != 0;) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, QUEEN, c), RMOVE(f) | BMOVE(f), mp, 0);
+			regMoves(PREMOVE(f, ROOK, c), RATT(f) & tb, mp, 0);
 		}
 
-		b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
-		while (b != 0) {
+		for (b = pieceb[BISHOP] & cb; b != 0;) {
 			f = getLsb(b); b &= b - 1;
-			int p = identPiece(f);
-			int t = p | getDir(f, k);
-			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RMOVE1(f), mp, 0);
-			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RMOVE2(f), mp, 0);
-			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BMOVE3(f), mp, 0);
-			if ((t & 65) == 65) regMoves(PREMOVE(f, p, c), BMOVE4(f), mp, 0);
+			regMoves(PREMOVE(f, BISHOP, c), BATT(f) & tb, mp, 0);
 		}
+
+		for (b = pieceb[QUEEN] & cb; b != 0;) {
+			f = getLsb(b); b &= b - 1;
+			regMoves(PREMOVE(f, QUEEN, c), (RATT(f) | BATT(f)) & tb, mp, 0);
+		}
+
+		generatePinned(c, k, pin, mp, tb, 0);
 	}
 
 	static void generateNoisy(int c, int k, long pin, Movep mp) {
-		long m, b, a, cb = colorb[c] & (~pin); int f;
+		int f; long b, cb = colorb[c] & (~pin), tb = colorb[c^1];
 
-		regKings(PREMOVE(k, KING, c), KCAP(k, c), mp, c, 1);
+		regKings(PREMOVE(k, KING, c), kmoves[k] & tb, mp, c, 1);
 
 		b = pieceb[PAWN] & colorb[c];
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			int t = (BIT[f] & pin) != 0 ? getDir(f, k) : 144;
-			if ((t & 8) != 0) continue;
-			if ((t & 16) != 0) {
-				m = PMOVE(f, c); a = (t & 128) != 0 ? PCAP(f, c) : 0;
-			} else if ((t & 32) != 0) {
-				m = 0; a = PCA3(f, c);
-			} else { // if (t & 64)
-				m = 0; a = PCA4(f, c);
-			}
+			int t = (BIT[f] & pin) != 0 ? getDir(f, k) : 17;
+			if (t == 8) continue;
+			long m = (t & 16) != 0 ? PMOVE(f, c) : 0;
+			long a = (t == 17) ? PCAP(f, c) : (t == 32) ? PCA3(f, c) : (t == 64) ? PCA4(f, c) : 0L;
 			if (RANK7(f, c)) {
 				if (a != 0) regMoves(PREMOVE(f, PAWN, c) | _PROM(QUEEN), a, mp, 1);
 				if (m != 0) regMoves(PREMOVE(f, PAWN, c) | _PROM(QUEEN), m, mp, 0);
@@ -790,7 +777,7 @@ public class OliThink {
 				if (a != 0) regMoves(PREMOVE(f, PAWN, c), a, mp, 1);
 				if (m != 0) regMoves(PREMOVE(f, PAWN, c), m, mp, 0);
 			} else {
-				if ((t & 128) != 0 && ENPASS() != 0 && (BIT[ENPASS()] & pcaps[(c)][(f)]) != 0) {
+				if (t == 17 && ENPASS() != 0 && (BIT[ENPASS()] & pcaps[c][f]) != 0) {
 					colorb[2] ^= BIT[ENPASS()^8];
 					if ((RATT1(f) & BIT[k]) == 0 || (RATT1(f) & colorb[c^1] & RQU()) == 0) {
 						a = a | BIT[ENPASS()];
@@ -801,40 +788,27 @@ public class OliThink {
 			}
 		}
 
-		b = pieceb[KNIGHT] & cb;
-		while (b != 0) {
+		for (b = pieceb[KNIGHT] & cb; b != 0;) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, KNIGHT, c), NCAP(f, c), mp, 1);
+			regMoves(PREMOVE(f, KNIGHT, c), nmoves[f] & tb, mp, 1);
 		}
 
-		b = pieceb[BISHOP] & cb;
-		while (b != 0) {
+		for (b = pieceb[ROOK] & cb; b != 0;) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, BISHOP, c), BCAP(f, c), mp, 1);
+			regMoves(PREMOVE(f, ROOK, c), RATT(f) & tb, mp, 1);
 		}
 
-		b = pieceb[ROOK] & cb;
-		while (b != 0) {
+		for (b = pieceb[BISHOP] & cb; b != 0;) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, ROOK, c), RCAP(f, c), mp, 1);
+			regMoves(PREMOVE(f, BISHOP, c), BATT(f) & tb, mp, 1);
 		}
 
-		b = pieceb[QUEEN] & cb;
-		while (b != 0) {
+		for (b = pieceb[QUEEN] & cb; b != 0;) {
 			f = getLsb(b); b &= b - 1;
-			regMoves(PREMOVE(f, QUEEN, c), RCAP(f, c) | BCAP(f,c), mp, 1);
+			regMoves(PREMOVE(f, QUEEN, c), (RATT(f) | BATT(f)) & tb, mp, 1);
 		}
 
-		b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]);
-		while (b != 0) {
-			f = getLsb(b); b &= b - 1;
-			int p = identPiece(f);
-			int t = p | getDir(f, k);
-			if ((t & 10) == 10) regMoves(PREMOVE(f, p, c), RCAP1(f, c), mp, 1);
-			if ((t & 18) == 18) regMoves(PREMOVE(f, p, c), RCAP2(f, c), mp, 1);
-			if ((t & 33) == 33) regMoves(PREMOVE(f, p, c), BCAP3(f, c), mp, 1);
-			if ((t & 65) == 65) regMoves(PREMOVE(f, p, c), BCAP4(f, c), mp, 1);
-		}
+		generatePinned(c, k, pin, mp, tb, 1);
 	}
 
 	static int generate(long ch, int c, Movep mp, boolean noisy, boolean quiet) {
@@ -898,11 +872,10 @@ public class OliThink {
 	}
 
 	static final int[] killer = new int[128];
-	static final long[] history = new long[0x2000];
+	static final int[] history = new int[0x2000];
 	/* In normal search some basic move ordering heuristics are used */
 	static int spick(Movep mp, int s, int ply) {
-		int m, i, pi = 0;
-		long vmax = -(1L << 62);
+		int m, i, pi = 0, vmax = -(1 << 15);
 		for (i = s; i < mp.n; i++) {
 			m = mp.list[i];
 			if (m == killer[ply]) {
@@ -920,11 +893,11 @@ public class OliThink {
 	static long fileb[] = new long [8];
 	static long pawnAttack(int c) {
 		long p = colorb[c] & pieceb[PAWN];
-		return c == 0 ? (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9 : (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9;
+		return c != 0 ? (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9 : (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9;
 	}
 
 	static long mobilityb(int c) {
-		long b = c == 0 ? rankb[1] | (BOARD() >> 8) : rankb[6] | (BOARD() << 8);
+		long b = c != 0 ? rankb[6] | (BOARD() << 8) : rankb[1] | (BOARD() >> 8);
 		b &= b & colorb[c] & pieceb[PAWN];
 		return ~(b | pawnAttack(c^1));
 	}
@@ -1160,7 +1133,7 @@ public class OliThink {
 
 		Movep mp = Movep.get((ply << 1) + (sem != 0 ? 1 : 0)); mp.nquiet = 0;
 		int raising = ch == 0 && ply >= 2 && wstat >= wstack[COUNT()-2] ? 1 : 0;
-		int first = NO_MOVE; long hismax = -1L;
+		int first = NO_MOVE, hismax = -1;
 		for (n = HASH; n <= ((ch != 0L) ? NOISY : QUIET); n++) {
 			int nd = d - 1;
 			if (n == HASH) {
@@ -1195,7 +1168,7 @@ public class OliThink {
 					if (m == killer[ply]); //Don't reduce killers
 					else if (PIECE(m) == PAWN && (pawnfree[c][TO(m)] & pieceb[PAWN] & colorb[oc]) == 0);
 					else {
-						long his = history[m & 0x1FFF];
+						int his = history[m & 0x1FFF];
 						if (his > hismax) hismax = his;
 						else if (d < 6 && (his < -1 || his*his < hismax)) { undoMove(m, c); continue; }
 						else if (d >= 2) ext-= (d + 1)/3;
@@ -1220,11 +1193,11 @@ public class OliThink {
 						if (quiet) {
 							int his = Math.min(d*d, 512);
 							killer[ply] = m;
-							history[m & 0x1FFF] += his;
+							history[m & 0x1FFF] += his - history[m & 0x1FFF]*his/512;
 
 							for (j = 0; j < mp.nquiet; j++) {
 								int m2 = mp.quiets[j];
-								if (m2 != m) history[m2 & 0x1FFF] -= his;
+								if (m2 != m) history[m2 & 0x1FFF] += -his - history[m2 & 0x1FFF]*his/512;
 							}
 						}
 						n = EXIT; break;
