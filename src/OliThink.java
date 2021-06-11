@@ -1,4 +1,4 @@
-/* OliThink5 Java(c) Oliver Brausch 06.Jun.2021, ob112@web.de, http://brausch.org */
+/* OliThink5 Java(c) Oliver Brausch 11.Jun.2021, ob112@web.de, http://brausch.org */
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class OliThink {
-	static final String VER = "5.9.8";
+	static final String VER = "5.9.9";
 	static final Class<?> otclass = OliThink.class;
 
 	static final int PAWN = 1, KNIGHT = 2, KING = 3, ENP = 4, BISHOP = 5, ROOK = 6, QUEEN = 7;
@@ -37,14 +37,14 @@ public class OliThink {
 	static int _CAP(int x) { return ((x) << 19); }
 	static int PREMOVE(int f, int p, int c) { return ((f) | _ONMV(c) | _PIECE(p)); }
 
-	static long RATT1(int f) { return rays[((f) << 7) | key000(BOARD(), f)]; }
-	static long RATT2(int f) { return rays[((f) << 7) | key090(BOARD(), f) | 0x2000]; }
-	static long BATT3(int f) { return rays[((f) << 7) | key045(BOARD(), f) | 0x4000]; }
-	static long BATT4(int f) { return rays[((f) << 7) | key135(BOARD(), f) | 0x6000]; }
-	static long RXRAY1(int f) { return rays[((f) << 7) | key000(BOARD(), f) | 0x8000]; }
-	static long RXRAY2(int f) { return rays[((f) << 7) | key090(BOARD(), f) | 0xA000]; }
-	static long BXRAY3(int f) { return rays[((f) << 7) | key045(BOARD(), f) | 0xC000]; }
-	static long BXRAY4(int f) { return rays[((f) << 7) | key135(BOARD(), f) | 0xE000]; }
+	static long RATT1(int f) { return rays[(f << 6) | key000(BOARD(), f)]; }
+	static long RATT2(int f) { return rays[(f << 6) | key090(BOARD(), f) | 0x1000]; }
+	static long BATT3(int f) { return rays[(f << 6) | key045(BOARD(), f) | 0x2000]; }
+	static long BATT4(int f) { return rays[(f << 6) | key135(BOARD(), f) | 0x3000]; }
+	static long RXRAY1(int f) { return rays[(f << 6) | key000(BOARD(), f) | 0x4000]; }
+	static long RXRAY2(int f) { return rays[(f << 6) | key090(BOARD(), f) | 0x5000]; }
+	static long BXRAY3(int f) { return rays[(f << 6) | key045(BOARD(), f) | 0x6000]; }
+	static long BXRAY4(int f) { return rays[(f << 6) | key135(BOARD(), f) | 0x7000]; }
 
 	static long RMOVE1(int f) { return (RATT1(f) & ~BOARD()); }
 	static long RMOVE2(int f) { return (RATT2(f) & ~BOARD()); }
@@ -113,7 +113,7 @@ public class OliThink {
 
 	static final long[] BIT = new long[64];
 	static final long[] hashxor = new long[4096];
-	static final long[] rays = new long[0x10000];
+	static final long[] rays = new long[0x8000];
 	static final long[][] pmoves = new long[2][64];
 	static final long[][] pcaps = new long[2][192];
 	static final long[] nmoves = new long[64];
@@ -349,8 +349,8 @@ public class OliThink {
 				occ = (Long) rayFunc.invoke(c, f, board, 2);
 				xray = (Long) rayFunc.invoke(c, f, board, 3);
 				index = (Integer) key.invoke(c, board, f);
-				rays[(f << 7) + index + off] = occ | move;
-				rays[(f << 7) + index + 0x8000 + off] = xray;
+				rays[(f << 6) + index + off] = occ | move;
+				rays[(f << 6) + index + 0x4000 + off] = xray;
 			}
 		}
 	}
@@ -448,18 +448,18 @@ public class OliThink {
 	static final long[] bmask45 = new long[64];
 	static final long[] bmask135 = new long[64];
 	static int key000(long b, int f) {
-		return (int) ((b >> (f & 56)) & 0x7E);
+		return (int) ((b >> ((f & 56) + 1) & 0x3F));
 	}
 
 	static int key090(long b, int f) {
 		long _b = (b >> (f&7)) & 0x0101010101010101L;
 		_b = _b * 0x0080402010080400L;
-		return (int)((_b >> 57) & 0x7F); // or (_b >>> 57)
+		return (int)((_b >> 58) & 0x3F); // or (_b >>> 58)
 	}
 
 	static int keyDiag(long _b) {
 		_b = _b * 0x0202020202020202L;
-		return (int)((_b >> 57) & 0x7F); // or (_b >>> 57)
+		return (int)((_b >> 58) & 0x3F); // or (_b >>> 58)
 	}
 
 	static int key045(long b, int f) {
@@ -950,7 +950,7 @@ public class OliThink {
 		b = pieceb[QUEEN] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
-			a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
+			a = BATT(f) | RATT(f);
 			if ((a & kn) != 0) katt += MOBILITY(a & kn, mb) << 3;
 			mn += MOBILITY(a, mb) * egf * egf / 75 / 75;
 		}
@@ -964,8 +964,7 @@ public class OliThink {
 			mn += MOBILITY(a, mb) << 2;
 		}
 
-		colorb[2] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
-		colorb[2] ^= pieceb[ROOK] & cb; //Own Rooks don't block mobility for rook.
+		colorb[2] ^= pieceb[ROOK]; //Own Rooks and opposite Queen don't block mobility for rook
 		b = pieceb[ROOK] & cb;
 		while (b != 0) {
 			f = getLsb(b); b &= b - 1;
@@ -999,8 +998,8 @@ public class OliThink {
 			if (cmat + 85 <= alpha) break;
 			best = eval(c);
 			if (best > alpha) {
-				alpha = best;
 				if (best >= beta) return beta;
+				alpha = best;
 			}
 		} while(false);
 
@@ -1119,7 +1118,7 @@ public class OliThink {
 		//Null Move - pvnode => null == 0
 		isnull = isnull && ch == 0 && beta > -MAXSCORE+500 && d > 1 && wstat > alpha
 				&& (ply < 2 || (mstack[COUNT()-2] >> 27) != 0);
-		if (isnull && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], oc))) > 1) {
+		if (isnull && (colorb[c] & (~pieceb[PAWN]) & (~pieceb[KING])) != 0) {
 			int R = (10 + d + nullvariance(wstat - alpha))/4;
 			doMove(0, c);
 			w = -search(0L, oc, d-R, ply+1, -beta, 1-beta, false, 0); //Null Move Search
@@ -1186,7 +1185,7 @@ public class OliThink {
 				if (w > alpha) {
 					alpha = w; first = GOOD_MOVE;
 					pv[ply][ply] = m;
-					for (j = ply +1; pv[ply +1][j] != 0; j++) pv[ply][j] = pv[ply +1][j];
+					for (j = ply +1; (pv[ply][j] = pv[ply +1][j]) != 0; j++);
 					pv[ply][j] = 0;
 
 					if (w >= beta) {
@@ -1543,9 +1542,9 @@ public class OliThink {
 
 		try {
 			_init_rays(0, otclass, "_rook0", "key000");
-			_init_rays(0x2000, otclass, "_rook90", "key090");
-			_init_rays(0x4000, otclass, "_bishop45", "key045");
-			_init_rays(0x6000, otclass, "_bishop135", "key135");
+			_init_rays(0x1000, otclass, "_rook90", "key090");
+			_init_rays(0x2000, otclass, "_bishop45", "key045");
+			_init_rays(0x3000, otclass, "_bishop135", "key135");
 		} catch (Exception e) { e.printStackTrace(); }
 		_init_shorts(nmoves, _knight);
 		_init_shorts(kmoves, _king);
